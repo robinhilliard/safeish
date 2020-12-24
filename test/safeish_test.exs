@@ -2,7 +2,7 @@ defmodule SafeishTest do
   use ExUnit.Case
   doctest Safeish
 
-  test "module calls Enum.map" do
+  test "module_risk lists call to Enum.map" do
     [{ModuleCallsEnumMap, bytecode}] = Code.compile_string(
       """
       defmodule ModuleCallsEnumMap do
@@ -14,12 +14,12 @@ defmodule SafeishTest do
     )
     assert MapSet.equal?(
              MapSet.new([{Enum, :map, 2}, {:erlang, :get_module_info, 2}]),
-             Safeish.module_calls(bytecode)
+             Safeish.module_risks(bytecode)
            )
   end
   
   
-  test "module calls File.read" do
+  test "module_risk lists call to File.read" do
     [{ModuleCallsFileRead, bytecode}] = Code.compile_string(
       """
       defmodule ModuleCallsFileRead do
@@ -31,12 +31,12 @@ defmodule SafeishTest do
     )
     assert MapSet.equal?(
              MapSet.new([{File, :read, 1}, {:erlang, :get_module_info, 2}]),
-             Safeish.module_calls(bytecode)
+             Safeish.module_risks(bytecode)
            )
   end
   
   
-  test "module spawns process" do
+  test "module_risk lists spawning process" do
     [{ModuleSpawnsProcess, bytecode}] = Code.compile_string(
       """
       defmodule ModuleSpawnsProcess do
@@ -48,12 +48,12 @@ defmodule SafeishTest do
     )
     assert MapSet.equal?(
              MapSet.new([{:erlang, :spawn, 3}, {:erlang, :get_module_info, 2}]),
-             Safeish.module_calls(bytecode)
+             Safeish.module_risks(bytecode)
            )
   end
   
   
-  test "module receives message" do
+  test "module_risk lists receiving message" do
     [{ModuleReceivesMessage, bytecode}] = Code.compile_string(
       """
       defmodule ModuleReceivesMessage do
@@ -68,11 +68,11 @@ defmodule SafeishTest do
     )
     assert MapSet.equal?(
              MapSet.new([{:builtin, :receive, 1}, {:erlang, :get_module_info, 2}]),
-             Safeish.module_calls(bytecode)
+             Safeish.module_risks(bytecode)
            )
   end
   
-  test "module sends message" do
+  test "module_risk lists sending message" do
     [{ModuleSendsMessage, bytecode}] = Code.compile_string(
       """
       defmodule ModuleSendsMessage do
@@ -84,12 +84,12 @@ defmodule SafeishTest do
     )
     assert MapSet.equal?(
              MapSet.new([{:erlang, :self, 0}, {:erlang, :send, 2}, {:erlang, :get_module_info, 2}]),
-             Safeish.module_calls(bytecode)
+             Safeish.module_risks(bytecode)
            )
   end
   
   
-  test "module calls to_atom" do
+  test "module_risk lists call to binary_to_atom" do
     [{ModuleCallsToAtom, bytecode}] = Code.compile_string(
       """
       defmodule ModuleCallsToAtom do
@@ -101,7 +101,7 @@ defmodule SafeishTest do
     )
     assert MapSet.equal?(
              MapSet.new([{:erlang, :binary_to_atom, 2}, {:erlang, :get_module_info, 2}]),
-             Safeish.module_calls(bytecode)
+             Safeish.module_risks(bytecode)
            )
   end
   

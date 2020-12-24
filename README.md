@@ -3,9 +3,9 @@
 NOT FOR PRODUCTION USE
 
 Safe-ish is an _experimental_ minimally restrictive sandbox for BEAM modules 
-that examines and rejects BEAM bytecode containing instructions that could 
-cause side effects outside an approved whitelist of callable modules. These 
-instructions include:
+that examines and rejects BEAM bytecode at load time containing instructions 
+that could cause side effects outside an approved whitelist of callable modules.
+These instructions include:
 
 - Spawning processes
 - Sending and receiving messages
@@ -15,10 +15,11 @@ instructions include:
 - System level introspection and diagnostics
 - Creating atoms dynamically at runtime (which would allow calls to non-whitelisted modules)
 
-To achieve any of these things the modules would have to go via mediating code in a 
-whitelisted module. For example, you might provide an implementation of spawn that 
-registered a limited number of PIDs and a send that could only message registered PIDs,
-along with macros to make the change transparent.
+To achieve any of these things the modules would have to call mediating code in a
+whitelisted module. For example, a whitelisted module might provide an implementation of
+spawn that registered a limited number of PIDs and a send that could only message registered
+PIDs, along with spawn and send macros that delegated to the whitelisted module to make the
+change transparent.
 
 A helper is also included for processes that call safeish-approved modules to limit memory use
 and number of reductions per call.
