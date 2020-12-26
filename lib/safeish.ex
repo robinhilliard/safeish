@@ -2,10 +2,9 @@ defmodule Safeish do
   @moduledoc """
   NOT FOR PRODUCTION USE
 
-  Safe-ish is an _experimental_ minimally restrictive sandbox for BEAM modules
-  that examines and rejects BEAM bytecode at load time if it contains instructions
-  that could cause side effects outside an approved whitelist of callable modules.
-  These instructions include:
+  Safe-ish is an _experimental_, minimally restrictive sandbox for BEAM modules
+  that examines and rejects BEAM bytecode at load time containing instructions
+  that could cause side effects such as:
   
   - Spawning processes
   - Sending and receiving messages
@@ -13,13 +12,10 @@ defmodule Safeish do
   - Network access
   - Compilation
   - System level introspection and diagnostics
-  - Creating atoms dynamically at runtime (which would allow calls to arbitrary modules)
+  - Creating atoms dynamically at runtime (which would allow calls to non-whitelisted modules)
   
-  To achieve any of these things the modules would have to go via mediating code in a
-  whitelisted module. For example, a whitelisted module might provide an implementation of
-  spawn that registered a limited number of PIDs and a send that could only message registered
-  PIDs, along with spawn and send macros that delegated to the whitelisted module to make the
-  change transparent.
+  You can provide an optional whitelist of modules, functions and language features that the
+  loaded module is allowed to use.
   """
   
   @elixir_version {1, 10, 4}
@@ -190,19 +186,11 @@ defmodule Safeish do
   ])
   
   
-  def load_file(filename, whitelist \\ []) do
-    {:ok, file} = File.open(filename, [:read])
-    bytecode = IO.binread(file, :all)
-    File.close(file)
-    load_bytecode(bytecode, whitelist)
-  end
-  
-
   @doc """
-  load_bytecode
+  Check and load module bytecode from a file path
   
   ## Params
-  bytecode:         Bytecode of module to check and load if name matches and content "safe"
+  filename:         Path to beam file to check and load if content "safe"
   whitelist:        A list of call targets and language features allowed in the bytecode:
                     - Module
                     - {Module, :function}
@@ -212,8 +200,40 @@ defmodule Safeish do
 
   ## Examples
   ```
-      iex> Safeish.load_bytecode(<<...>>, [WhitelistedModuleA, {WhitelistedModuleB, :some_func}])
-      {:ok, Safe}
+    iex> Safeish.load_bytecode(<<...>>, [WhitelistedModuleA, {WhitelistedModuleB, :some_func}])
+    {:ok, SomeSafeModule}
+    iex> SomeSafeModule.func()
+    
+  ```
+  """
+  
+  
+  def load_file(filename, whitelist \\ []) do
+    {:ok, file} = File.open(filename, [:read])
+    bytecode = IO.binread(file, :all)
+    File.close(file)
+    load_bytecode(bytecode, whitelist)
+  end
+  
+
+  @doc """
+  Check and load binary module bytecode
+  
+  ## Params
+  bytecode:         Bytecode of module to check and load if content "safe"
+  whitelist:        A list of call targets and language features allowed in the bytecode:
+                    - Module
+                    - {Module, :function}
+                    - {Module, :function, arity}
+                    - :send
+                    - :receive
+
+  ## Examples
+  ```
+    iex> Safeish.load_bytecode(<<...>>, [WhitelistedModuleA, {WhitelistedModuleB, :some_func}])
+    {:ok, SomeSafeModule}
+    iex> SomeSafeModule.func()
+      
   ```
   """
   def load_bytecode(bytecode, whitelist \\ []) do
@@ -227,6 +247,24 @@ defmodule Safeish do
   end
   
   
+  @doc """
+  Check binary module bytecode
+  
+  ## Params
+  bytecode:         Bytecode of module to check and load if content "safe"
+  whitelist:        A list of call targets and language features allowed in the bytecode:
+                    - Module
+                    - {Module, :function}
+                    - {Module, :function, arity}
+                    - :send
+                    - :receive
+
+  ## Examples
+  ```
+    iex> Safeish.load_bytecode(<<...>>, [WhitelistedModuleA, {WhitelistedModuleB, :some_func}])
+    {:ok, SomeSafeModule}
+  ```
+  """
   def check(bytecode, whitelist \\ []) do
     {:ok, module, risks} = module_risks(bytecode)
     check_list = risks |> Enum.map(&risk_acceptable?(&1, whitelist))
