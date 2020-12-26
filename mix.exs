@@ -7,8 +7,11 @@ defmodule Safeish.MixProject do
       version: "0.1.0",
       elixir: "~> 1.10",
       start_permanent: Mix.env() == :prod,
+      description: description(),
+      package: package(),
       deps: deps(),
-      aliases: aliases()
+      aliases: aliases(),
+      source_url: "https://github.com/robinhilliard/safeish",
     ]
   end
 
@@ -21,9 +24,24 @@ defmodule Safeish.MixProject do
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
+    []
+  end
+  
+  defp description() do
+    "NOT FOR PRODUCTION USE: Safe-ish is an experimental, minimally restrictive sandbox
+    for BEAM modules that examines and rejects BEAM bytecode at load time containing
+    instructions that could cause side effects. You can provide an optional whitelist of
+    modules, functions and language features that the loaded module is allowed to use."
+  end
+  
+  defp package() do
     [
-      # {:dep_from_hexpm, "~> 0.3.0"},
-      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
+      name: "safeish",
+      files: ["lib", "mix.exs", "README.md", "LICENSE"],
+      exclude_patterns: [".DS_Store"],
+      licenses: ["MIT"],
+      links: %{"Github" => "https://github.com/robinhilliard/safeish"},
+      maintainers: ["Robin Hilliard"]
     ]
   end
   
