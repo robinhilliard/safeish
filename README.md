@@ -1,11 +1,10 @@
-# Safeish
+# Safe-ish
 
 NOT FOR PRODUCTION USE
 
-Safe-ish is an _experimental_ minimally restrictive sandbox for BEAM modules 
+Safe-ish is an _experimental_, minimally restrictive sandbox for BEAM modules 
 that examines and rejects BEAM bytecode at load time containing instructions 
-that could cause side effects outside an approved whitelist of callable modules.
-These instructions include:
+that could cause side effects such as:
 
 - Spawning processes
 - Sending and receiving messages
@@ -15,22 +14,38 @@ These instructions include:
 - System level introspection and diagnostics
 - Creating atoms dynamically at runtime (which would allow calls to non-whitelisted modules)
 
-To achieve any of these things the modules would have to call mediating code in a
-whitelisted module. For example, a whitelisted module might provide an implementation of
-spawn that registered a limited number of PIDs and a send that could only message registered
-PIDs, along with spawn and send macros that delegated to the whitelisted module to make the
-change transparent.
-
-A helper is also included for processes that call safeish-approved modules to limit memory use
-and number of reductions per call.
+You can provide an optional whitelist of modules, functions and language features that the 
+loaded module is allowed to use.
 
 ## Use
+You can call:
+
+- `Safeish.check(bytecode)` to check binary bytecode `bytecode` without loading the module
+- `Safeish.load_bytecode(bytecode)` to check `bytecode` and then load the module if it is ok
+- `Safeish.load_file(path)` to read the bytecode from the beam file at `path`, check and load it if it is ok
+
+All the above functions take a second optional whitelist argument of calls and language features to allow.
+The following list entries are allowed:
+
+- `Module` to allow calls to any function in Elixir module `Module`
+- `{Module, function}` to allow calls to an Elixir function with any arity
+- `{Module, function, arity}` to allow calls to an Elixir function with a specific arity
+- `:module` to allow calls to any function in Erlang module `:module`
+- `{:module, function}` to allow calls to an Erlang function with any arity
+- `{:module, function, arity}` to allow calls to an Erlang function with a specific arity
+- `:send` to allow sending of messages
+- `:receive` to allow receipt of messages
+
+The return value for all functions is either `{:ok, Module}` or `{:error, ["reason 1", "reason 2", ...]}`
+
+## Example
 
 ```
-> Safeish.load_file("Unsafe")
-{:error, "Unsafe.beam: Calling String.to_atom() not allowed"}
-> Safeish.load_file("Safe")
-[{FirstSafeModule, <<...>>}, {SecondSafeModule, <<...>>}, ...]
+> Safeish.load_file("CallFileRead.beam")
+{:error, CallFileRead, ["Elixir.File.read/1 not whitelisted"]}
+> Safeish.load_file("CallFileRead.beam", [{File, read, 1}])
+{:ok, CallFileRead}
+> CallFileRead.somefunc()
 ```
 
 ## Installation
