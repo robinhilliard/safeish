@@ -1,108 +1,121 @@
 defmodule SafeishTest do
   use ExUnit.Case
-  doctest Safeish
+  
+  
+  # Note we can't use Code.compile_string() because that actually loads the module,
+  # defeating the whole purpose of Safeish doing the check
+  #
+  # Run `mix fixtures` to clean and rebuild beam files
+  
+  defp get_fixture_bytecode(fixture) do
+    {:ok, file} = File.open("#{File.cwd!()}/test/fixtures_build/#{Atom.to_string(fixture)}.beam", [:read])
+    bytecode = IO.binread(file, :all)
+    File.close(file)
+    bytecode
+  end
+  
+  
+  test "invalid bytecode" do
+    assert {:error, :badarg} = Safeish.module_risks(<<0>>)
+  end
 
+  
   test "module_risk lists call to Enum.map" do
-    [{ModuleCallsEnumMap, bytecode}] = Code.compile_string(
-      """
-      defmodule ModuleCallsEnumMap do
-        def f() do
-          Enum.map([1,2,3], fn x -> x + 1 end)
-        end
-      end
-      """
-    )
+    {:ok, ModuleCallsEnumMap, risks} = Safeish.module_risks(get_fixture_bytecode(ModuleCallsEnumMap))
     assert MapSet.equal?(
              MapSet.new([{Enum, :map, 2}, {:erlang, :get_module_info, 2}]),
-             Safeish.module_risks(bytecode)
-           )
+             risks)
   end
   
   
   test "module_risk lists call to File.read" do
-    [{ModuleCallsFileRead, bytecode}] = Code.compile_string(
-      """
-      defmodule ModuleCallsFileRead do
-        def f() do
-          File.read("nofile.txt")
-        end
-      end
-      """
-    )
+    {:ok, ModuleCallsFileRead, risks} =
+      Safeish.module_risks(get_fixture_bytecode(ModuleCallsFileRead))
     assert MapSet.equal?(
              MapSet.new([{File, :read, 1}, {:erlang, :get_module_info, 2}]),
-             Safeish.module_risks(bytecode)
-           )
+             risks)
   end
   
   
   test "module_risk lists spawning process" do
-    [{ModuleSpawnsProcess, bytecode}] = Code.compile_string(
-      """
-      defmodule ModuleSpawnsProcess do
-        def f() do
-          spawn(ModuleSpawnsProcess, fn x -> x end, [])
-        end
-      end
-      """
-    )
+    {:ok, ModuleSpawnsProcess, risks} =
+      Safeish.module_risks(get_fixture_bytecode(ModuleSpawnsProcess))
     assert MapSet.equal?(
              MapSet.new([{:erlang, :spawn, 3}, {:erlang, :get_module_info, 2}]),
-             Safeish.module_risks(bytecode)
-           )
+             risks)
   end
   
   
   test "module_risk lists receiving message" do
-    [{ModuleReceivesMessage, bytecode}] = Code.compile_string(
-      """
-      defmodule ModuleReceivesMessage do
-        def f() do
-          receive do
-            _ ->
-              true
-          end
-        end
-      end
-      """
-    )
+    {:ok, ModuleReceivesMessage, risks} =
+      Safeish.module_risks(get_fixture_bytecode(ModuleReceivesMessage))
     assert MapSet.equal?(
-             MapSet.new([{:builtin, :receive, 1}, {:erlang, :get_module_info, 2}]),
-             Safeish.module_risks(bytecode)
-           )
+             MapSet.new([:receive, {:erlang, :get_module_info, 2}]),
+             risks)
   end
   
+  
   test "module_risk lists sending message" do
-    [{ModuleSendsMessage, bytecode}] = Code.compile_string(
-      """
-      defmodule ModuleSendsMessage do
-        def f() do
-          send self(), :msg
-        end
-      end
-      """
-    )
+    {:ok, ModuleSendsMessage, risks} =
+      Safeish.module_risks(get_fixture_bytecode(ModuleSendsMessage))
     assert MapSet.equal?(
-             MapSet.new([{:erlang, :self, 0}, {:erlang, :send, 2}, {:erlang, :get_module_info, 2}]),
-             Safeish.module_risks(bytecode)
-           )
+             MapSet.new([{:erlang, :self, 0}, :send, {:erlang, :get_module_info, 2}]),
+             risks)
   end
   
   
   test "module_risk lists call to binary_to_atom" do
-    [{ModuleCallsToAtom, bytecode}] = Code.compile_string(
-      """
-      defmodule ModuleCallsToAtom do
-        def f() do
-          String.to_atom("not_allowed")
-        end
-      end
-      """
-    )
+    {:ok, ModuleCallsToAtom, risks} =
+      Safeish.module_risks(get_fixture_bytecode(ModuleCallsToAtom))
     assert MapSet.equal?(
              MapSet.new([{:erlang, :binary_to_atom, 2}, {:erlang, :get_module_info, 2}]),
-             Safeish.module_risks(bytecode)
-           )
+             risks)
   end
   
+  
+  test "check responds ok to call Enum.map" do
+    assert {:ok, ModuleCallsEnumMap} = get_fixture_bytecode(ModuleCallsEnumMap) |> Safeish.check
+  end
+  
+  
+  test "check responds not ok to call File.read" do
+    assert {:error, ModuleCallsFileRead, ["Elixir.File.read/1 not whitelisted"]} =
+                    get_fixture_bytecode(ModuleCallsFileRead) |> Safeish.check
+  end
+  
+  
+  test "check responds not ok to spawning process" do
+    assert {:error, ModuleSpawnsProcess, [":erlang.spawn not whitelisted"]} =
+                    get_fixture_bytecode(ModuleSpawnsProcess) |> Safeish.check
+  end
+  
+  
+  test "check responds not ok to receiving message" do
+    assert {:error, ModuleReceivesMessage, ["receive not allowed"]} =
+                    get_fixture_bytecode(ModuleReceivesMessage) |> Safeish.check
+  end
+  
+  
+  test "check responds not ok to sending message" do
+    assert {:error, ModuleSendsMessage, ["send not allowed"]} =
+                    get_fixture_bytecode(ModuleSendsMessage) |> Safeish.check
+  end
+  
+  
+  test "check responds not ok to calling to_atom" do
+    assert {:error, ModuleCallsToAtom, [":erlang.binary_to_atom not whitelisted"]} =
+                    get_fixture_bytecode(ModuleCallsToAtom) |> Safeish.check
+  end
+
+
+  test "check allows whitelisting of File module" do
+    assert {:ok, ModuleCallsFileRead} =
+             get_fixture_bytecode(ModuleCallsFileRead) |> Safeish.check([File])
+  end
+  
+  
+  test "check allows whitelisting of spawn" do
+    assert {:ok, ModuleSpawnsProcess} =
+             get_fixture_bytecode(ModuleSpawnsProcess) |> Safeish.check([{:erlang, :spawn, 3}])
+  end
 end

@@ -20,17 +20,13 @@ defmodule Safeish do
   spawn that registered a limited number of PIDs and a send that could only message registered
   PIDs, along with spawn and send macros that delegated to the whitelisted module to make the
   change transparent.
-  
-  A helper is also included for processes that call safeish-approved modules to limit
-  memory use/time elapsed/number of reductions per call.
-  
   """
   
-  @elixir_version(1, 10, 4)
+  @elixir_version {1, 10, 4}
   @otp_release 23
   
-  # All erlang modules other than :erlang are blacklisted. Within the erlang module only the following
-  # BIFs are whitelisted # TODO check arguments to apply(), and specify arity
+  # Within the erlang module only the following BIFs are whitelisted
+  # TODO check arguments to apply(), and specify arity
   
   @whitelisted_erlang_bifs MapSet.new([
     :abs, :adler32, :adler32_combine, :append_element, :atom_to_binary, :atom_to_list, :binary_part,
@@ -48,6 +44,17 @@ defmodule Safeish do
     :size, :split_binary, :start_timer, :system_time, :term_to_binary, :term_to_iovec, :throw, :time,
     :time_offset, :timestamp, :tl, :trunc, :tuple_size, :tuple_to_list, :unique_integer, :universaltime,
     :universaltime_to_localtime
+  ])
+  
+  
+  # Skipped beam_lib, c, dets, digraph, digraph_utils, epp, erl_anno, erl_eval, erl_expand_records,
+  # erl_id_trans, erl_internal, erl_lint, erl_parse, erl_scan, erl_tar, ets, file_sorter, file_lib,
+  # gen_event, gen_fsm, gen_server, gen_statem, io, io_lib, ms_transform, pool, proc_lib, qlc, shell
+  # shell_default, shell_docs, slave, supervisor, supervisor_bridge, sys, win32reg, zip
+  @whitelisted_erlang_stdlib_modules MapSet.new([
+    :array, :base64, :binary, :calendar, :dict, :erl_pp, :filename, :gb_sets, :gb_trees, :lists, :maps,
+    :math, :orddict, :ordsets, :proplists, :queue, :rand, :re, :sets, :sofs, :string, :timer, :unicode,
+    :uri_string
   ])
   
   
@@ -182,65 +189,117 @@ defmodule Safeish do
     {System, :version, 0}
   ])
   
+  
+  def load_file(filename, whitelist \\ []) do
+    {:ok, file} = File.open(filename, [:read])
+    bytecode = IO.binread(file, :all)
+    File.close(file)
+    load_bytecode(bytecode, whitelist)
+  end
+  
 
   @doc """
-  load_file
+  load_bytecode
+  
+  ## Params
+  bytecode:         Bytecode of module to check and load if name matches and content "safe"
+  whitelist:        A list of call targets and language features allowed in the bytecode:
+                    - Module
+                    - {Module, :function}
+                    - {Module, :function, arity}
+                    - :send
+                    - :receive
 
   ## Examples
   ```
-      iex> Safeish.load_file("path/to/Safe", [WhitelistedModuleA, WhitelistedModuleB])
-      {:ok, [SafeModule1, SafeModule2, ...]}
+      iex> Safeish.load_bytecode(<<...>>, [WhitelistedModuleA, {WhitelistedModuleB, :some_func}])
+      {:ok, Safe}
   ```
   """
-  
-  def load_file(filename) do
-  
+  def load_bytecode(bytecode, whitelist \\ []) do
+    case check(bytecode, whitelist) do
+      {:ok, module} ->
+        :code.load_binary(module, module, bytecode)
+        {:ok, module}
+      error ->
+        error
+    end
   end
   
   
-  def load_bytecode(bytecode) do
-    check_list = module_risks(bytecode) |> Enum.map(risk_acceptable?)
-    
+  def check(bytecode, whitelist \\ []) do
+    {:ok, module, risks} = module_risks(bytecode)
+    check_list = risks |> Enum.map(&risk_acceptable?(&1, whitelist))
+    if Enum.all?(check_list, &match?(:ok, &1)) do
+      {:ok, module}
+    else
+      {:error, module, check_list
+                        |> Enum.filter(&match?({:error, _}, &1))
+                        |> Enum.map(fn {:error, msg} -> msg end)}
+    end
+  end
   
-  def risk_acceptable?({:erlang, function, _}) do
+  
+  def risk_acceptable?({module, _, _}, [module | _whitelist]), do: :ok
+  def risk_acceptable?({module, function, _}, [{module, function} | _whitelist]), do: :ok
+  def risk_acceptable?(mfa, [mfa | _whitelist]), do: :ok
+  def risk_acceptable?(risk, [_not_that_risk | whitelist]), do: risk_acceptable?(risk, whitelist)
+  
+  def risk_acceptable?({:erlang, function, _}, []) do
     if MapSet.member?(@whitelisted_erlang_bifs, function) do
         :ok
     else
-        {:error, ":erlang.#{Atom.to_binary(function)} not whitelisted"}
+        {:error, ":erlang.#{Atom.to_string(function)} not whitelisted"}
     end
   end
   
-  def risk_acceptable?(mfa = {module, function, arity}) do
-    if MapSet.member?(@whitelisted_elixir_functions, mfa) do
+  def risk_acceptable?(mfa = {module, function, arity}, []) do
+    if MapSet.member?(@whitelisted_erlang_stdlib_modules, module) or
+       MapSet.member?(@whitelisted_elixir_modules, module) or
+       MapSet.member?(@whitelisted_elixir_functions, mfa) do
       :ok
     else
-      {:error, "#{Atom.to_string(module)}.#{Atom.to_string(function}/#{Integer.to_string(arity)} not whitelisted"}
+      {
+        :error,
+        "#{Atom.to_string(module)}.#{Atom.to_string(function)}/#{Integer.to_string(arity)} not whitelisted"
+      }
     end
   end
+  
+  def risk_acceptable?(:send, []) do
+    {:error, "send not allowed"}
+  end
     
-  def risk_acceptable?({module, _, _}) do
-    if MapSet.member?(@whitelisted_elixir_modules, module) do
-      :ok
-    else
-      {:error, "#{module} not whitelisted"}
-    end
-    
-  def risk_acceptable?({module, _, _}) do
-    if MapSet.member?(@whitelisted_elixir_modules, module) do
-      :ok
-    else
-      {:error, "#{module} not whitelisted"}
-    end
-    
-  def risk_acceptable?(:receive) do
+  def risk_acceptable?(:receive, []) do
     {:error, "receive not allowed"}
-    end
+  end
+    
+  def risk_acceptable?(_, _), do: {:error, "unknown risk not whitelisted"}
   
   
   # TODO detect __STACKTRACE__/0, non literal apply arguments
   
   def module_risks(bytecode) when is_binary(bytecode) do
-    module_risks(:beam_lib.chunks(bytecode, [:abstract_code]), MapSet.new())
+    case :beam_lib.chunks(bytecode, [:abstract_code]) do
+      {:ok, {module, [abstract_code: code]}} ->
+        {:ok,
+          module,
+          module_risks(:beam_lib.chunks(bytecode, [:abstract_code]), MapSet.new())}
+      _ ->
+        {:error, :badarg}
+    end
+  end
+  
+  
+  def module_risks(
+        {:call, _line_no, {:remote, _, {:atom, _, :erlang}, {:atom, _, :send}}, args},
+        acc
+      ) do
+    module_risks(
+      args,
+      acc
+      |> MapSet.put(:send)
+    )
   end
   
   def module_risks(
@@ -265,7 +324,7 @@ defmodule Safeish do
   def module_risks([], acc), do: acc
   
   def module_risks([chunk | chunks], acc),
-      do: module_risks(chunk, module_calls(chunks, acc))
+      do: module_risks(chunk, module_risks(chunks, acc))
       
   def module_risks(t, acc) when is_tuple(t),
       do: module_risks(Tuple.to_list(t), acc)
