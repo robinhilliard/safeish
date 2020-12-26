@@ -28,10 +28,10 @@ defmodule Safeish.MixProject do
   end
   
   defp description() do
-    "NOT FOR PRODUCTION USE: Safe-ish is an experimental, minimally restrictive sandbox
-    for BEAM modules that examines and rejects BEAM bytecode at load time containing
-    instructions that could cause side effects. You can provide an optional whitelist of
-    modules, functions and language features that the loaded module is allowed to use."
+    "NOT FOR PRODUCTION USE: Safe-ish is an experimental sandbox for BEAM modules that
+    examines and rejects BEAM bytecode at load time containing instructions that could
+    cause side effects. You can provide an optional whitelist of modules, functions and
+    language features that the loaded module is allowed to use."
   end
   
   defp package() do
