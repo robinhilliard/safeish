@@ -18,8 +18,7 @@ defmodule Safeish do
   loaded module is allowed to use.
   """
   
-  @elixir_version {1, 10, 4}
-  @otp_release 23
+  # Following lists were compiled for Elixir 1.10.4 and OTP release 23
   
   # Within the erlang module only the following BIFs are whitelisted
   # TODO check arguments to apply(), and specify arity
@@ -322,7 +321,7 @@ defmodule Safeish do
       {:ok, {module, [abstract_code: code]}} ->
         {:ok,
           module,
-          module_risks(:beam_lib.chunks(bytecode, [:abstract_code]), MapSet.new())}
+          module_risks(code, MapSet.new())}
       _ ->
         {:error, :badarg}
     end
