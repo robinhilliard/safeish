@@ -14,22 +14,66 @@ defmodule Decompile do
   
   
   def decompile(bytecode) do
-    {:ok, {module, [{'AtU8', atoms}, {'Code', code}]}} =
-      :beam_lib.chunks(bytecode, ['AtU8','Code'])
+    {:ok, {module, [{'AtU8', atoms}, {'LitT', literals}, {'Code', code}]}} =
+      :beam_lib.chunks(bytecode, ['AtU8', 'LitT', 'Code'])
     [result | code] = parse_code(code)
-    %{result | code: code, atoms: parse_atoms(atoms)}
+    parsed_atoms = parse_atoms(atoms)
+    parsed_literals = parse_literals(literals)
+    {
+      :ok,
+      module,
+      %{result |
+        code: code |> decode_tags(parsed_atoms, parsed_literals) |> fix_labels,
+        atoms: parsed_atoms,
+        literals: parsed_literals
+      }
+    }
   end
   
+  
+ 
+  def decode_tags([{:tag_u, value} | rest], a, l), do: [value | decode_tags(rest, a, l)]
+  def decode_tags([{:tag_i, value} | rest], a, l), do: [value | decode_tags(rest, a, l)]
+  def decode_tags([{:tag_a, 0} | rest], a, l), do: [nil | decode_tags(rest, a, l)]
+  def decode_tags([{:tag_a, index} | rest], a, l), do: [elem(a, index - 1) | decode_tags(rest, a, l)]
+  def decode_tags([{:tag_x, index} | rest], a, l), do: [:"X#{index}" | decode_tags(rest, a, l)]
+  def decode_tags([{:tag_y, index} | rest], a, l), do: [:"Y#{index}" | decode_tags(rest, a, l)]
+  def decode_tags([{:tag_f, value} | rest], a, l), do: [{:label, value} | decode_tags(rest, a, l)]
+  def decode_tags([{:tag_h, c} | rest], a, l), do: [String.next_codepoint(c) | decode_tags(rest, a, l)]
+  def decode_tags([{:tag_extended_literal, index} | rest], a, l), do: [elem(l, index) | decode_tags(rest, a, l)]
+  def decode_tags([{:tag_extended_list, list} | rest ], a, l), do: [decode_tags(list, a, l) | decode_tags(rest, a, l)]
+  def decode_tags([{key, value} | rest], a, l) when is_atom(key), do: [{key, decode_tags(value, a, l)} | decode_tags(rest, a, l)]
+  def decode_tags([x | rest], a, l), do: [decode_tags(x, a, l) | decode_tags(rest, a, l)]
+  def decode_tags([], _, _), do: []
+  def decode_tags(x, _, _), do: x
+
+  
+  def fix_labels([{:label, [num]} | rest]) when is_number(num), do: [{:label, num} | fix_labels(rest)]
+  def fix_labels([x | rest]), do: [fix_labels(x) | fix_labels(rest)]
+  def fix_labels([]), do: []
+  def fix_labels(x), do: x
   
   def parse_atoms(<<atom_count::integer-size(32), atoms::binary>>) do
     parse_atoms(atoms, atom_count, [])
   end
   
-  def parse_atoms(_, 0, names), do: names
+  def parse_atoms(_, 0, names), do: names |> Enum.reverse |> List.to_tuple
   
   def parse_atoms(<<length::integer, name::binary-size(length), atoms::binary>>,
         atoms_remaining, names) do
     parse_atoms(atoms, atoms_remaining - 1, [String.to_atom(name) | names])
+  end
+  
+  
+  def parse_literals(<<_compressed_table_size::integer-size(32), compressed::binary>>) do
+    <<_number_of_literals::integer-size(32), table::binary>> = :zlib.uncompress(compressed)
+    parse_literals(table, [])
+  end
+  
+  def parse_literals(<<>>, literals), do: literals |> Enum.reverse |> List.to_tuple
+  
+  def parse_literals(<<size::integer-size(32), literal::binary-size(size), rest::binary>>, literals) do
+    parse_literals(rest, [:erlang.binary_to_term(literal) | literals])
   end
   
   
@@ -98,7 +142,7 @@ defmodule Decompile do
         remaining_terms, parsed_terms) do
     {rest_after_length, [{:tag_u, list_length}]} = parse_compact_terms(rest, 1, [])
     {rest_after_list, terms} = parse_compact_terms(rest_after_length, list_length, [])
-    pairs = terms |> Enum.chunk_every(2) |> Enum.map(&List.to_tuple/1) |> List.to_tuple
+    pairs = terms |> Enum.chunk_every(2)
     parse_compact_terms(rest_after_list, remaining_terms - 1, [{:tag_extended_list, pairs} | parsed_terms])
   end
   
