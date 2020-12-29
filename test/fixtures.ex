@@ -42,3 +42,9 @@ defmodule ModuleCallsToAtom do
     String.to_atom("not_allowed")
   end
 end
+
+defmodule ModuleTagValueUnder16 do
+  def f() do
+    Integer.to_string(3)
+  end
+end
