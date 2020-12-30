@@ -39,12 +39,6 @@ end
 
 defmodule ModuleCallsToAtom do
   def f() do
-    String.to_atom("not_allowed")
-  end
-end
-
-defmodule ModuleTagValueUnder16 do
-  def f() do
-    Integer.to_string(3)
+    String.to_atom(Enum.random(["no", "nein", "nyet", "non"]))
   end
 end
