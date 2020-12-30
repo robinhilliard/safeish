@@ -5,9 +5,9 @@ defmodule BountyTest do
   I, Robin Hilliard, will pay the submitter of the first pull request to
   my github repo for this project that causes the test
   
-  "bounty 2 checked code can guess the secret"
+  "bounty 3 checked code can guess the secret"
 
-  to pass by changing the contents of `bounty_winners/Elixir.Bounty2.beam`
+  to pass by changing the contents of `bounty_winners/Elixir.Bounty3.beam`
   AND NOTHING ELSE 100 USD. Provide payment details (email or mobile) within
   one week of PR being accepted to robin.hilliard (at) gmail.com.
   
@@ -26,7 +26,7 @@ defmodule BountyTest do
   The current beam file was compiled from this source:
   
   ```
-  defmodule Bounty2 do
+  defmodule Bounty3 do
     def guess(), do: -1
   end
   ```
@@ -45,20 +45,25 @@ defmodule BountyTest do
   Bounty Version Date           Winner      What I learned
   ------ ------- ----           ------      --------------
   1      0.1.0   26 Dec 2020    Voltone     The abstract code chunk has nothing to do with the actual code
+  2      0.2.0   30 Dec 2020    Voltone     There is an apply opcode, it's not just an external function
   """
   use ExUnit.Case
   
   
   test "bounty 1: checked code can guess the secret" do
-    <<secret::128>> = :crypto.strong_rand_bytes(16)
-    assert {:ok, Bounty1} = Safeish.load_file("test/bounty_winners/Elixir.Bounty1.beam")
-    assert ^secret = Bounty1.guess()
+    assert {:error, Bounty1, [":erlang.process_info not whitelisted"]} =
+             Safeish.load_file("test/bounty_winners/Elixir.Bounty1.beam")
   end
   
   test "bounty 2: checked code can guess the secret" do
+    assert {:error, Bounty2, ["apply not allowed"]} =
+             Safeish.load_file("test/bounty_winners/Elixir.Bounty2.beam")
+  end
+  
+  test "bounty 3: checked code can guess the secret" do
     <<secret::128>> = :crypto.strong_rand_bytes(16)
-    assert {:ok, Bounty2} = Safeish.load_file("test/bounty_winners/Elixir.Bounty2.beam")
-    assert ^secret = Bounty2.guess()
+    assert {:ok, Bounty3} = Safeish.load_file("test/bounty_winners/Elixir.Bounty3.beam")
+    assert ^secret = Bounty3.guess()
   end
   
   
