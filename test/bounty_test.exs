@@ -30,7 +30,6 @@ defmodule BountyTest do
     def guess(), do: -1
   end
   ```
-  
   You can use Erlang, LFE or anything you like to generate the beam file, but
   this must be done separately to the test run (the idea is that the BEAM file
   was generated somewhere else and that Safeish is testing and loading it here).
