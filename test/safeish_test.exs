@@ -198,4 +198,14 @@ defmodule SafeishTest do
     assert {:ok, ModuleSpawnsProcess} =
              get_fixture_bytecode(ModuleSpawnsProcess) |> Safeish.check([{:erlang, :spawn, 3}])
   end
+  
+  test "check allows whitelisting of send" do
+    assert {:ok, ModuleSendsMessage} =
+             get_fixture_bytecode(ModuleSendsMessage) |> Safeish.check([:send])
+  end
+  
+  test "check allows whitelisting of receive" do
+    assert {:ok, ModuleReceivesMessage} =
+             get_fixture_bytecode(ModuleReceivesMessage) |> Safeish.check([:receive])
+  end
 end

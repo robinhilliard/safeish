@@ -204,7 +204,6 @@ defmodule Safeish do
     iex> Safeish.load_bytecode(<<...>>, [WhitelistedModuleA, {WhitelistedModuleB, :some_func}])
     {:ok, SomeSafeModule}
     iex> SomeSafeModule.func()
-    
   ```
   """
   
@@ -234,7 +233,6 @@ defmodule Safeish do
     iex> Safeish.load_bytecode(<<...>>, [WhitelistedModuleA, {WhitelistedModuleB, :some_func}])
     {:ok, SomeSafeModule}
     iex> SomeSafeModule.func()
-      
   ```
   """
   def load_bytecode(bytecode, whitelist \\ []) do
@@ -282,6 +280,8 @@ defmodule Safeish do
   def risk_acceptable?({module, _, _}, [module | _whitelist]), do: :ok
   def risk_acceptable?({module, function, _}, [{module, function} | _whitelist]), do: :ok
   def risk_acceptable?(mfa, [mfa | _whitelist]), do: :ok
+  def risk_acceptable?(:remove_message, [:receive | _whitelist]), do: :ok
+  def risk_acceptable?({:erlang, :send, 2}, [:send | _whitelist]), do: :ok
   def risk_acceptable?(risk, [_not_that_risk | whitelist]), do: risk_acceptable?(risk, whitelist)
   
   def risk_acceptable?({:erlang, function, _}, []) do
@@ -307,6 +307,10 @@ defmodule Safeish do
     
   def risk_acceptable?(:remove_message, []) do
     {:error, "receive (remove_message) not allowed"}
+  end
+  
+  def risk_acceptable?(:apply, []) do
+    {:error, "apply not allowed"}
   end
     
   def risk_acceptable?(_, _), do: :ok
