@@ -12,7 +12,7 @@ that could cause side effects such as:
 - Network access
 - Compilation
 - System level introspection and diagnostics
-- Creating atoms dynamically at runtime (which would allow calls to non-whitelisted modules)
+- Apply and creating atoms dynamically at runtime (which would allow calls to non-whitelisted modules)
 
 You can provide an optional whitelist of modules, functions and language features that the 
 loaded module is allowed to use.
@@ -55,7 +55,7 @@ The package can be installed by adding `safeish` to your list of dependencies in
 ```elixir
 def deps do
   [
-    {:safeish, "~> 0.2.0"}
+    {:safeish, "~> 0.3.0"}
   ]
 end
 ```
