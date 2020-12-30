@@ -18,44 +18,53 @@ defmodule Decompile do
     imports: [],
     exports: [],
     strings: [],
-    code: []
+    code: [],
+    opcodes: MapSet.new()
   ]
   
   
   def decompile(bytecode) do
-    {:ok,
-      {module, [
-        {'AtU8', atoms},
-        {'LitT', literals},
-        {'ImpT', imports},
-        {'ExpT', exports},
-        {'StrT', strings},
-        {'Code', code}
-      ]}} =
-      :beam_lib.chunks(bytecode, ['AtU8', 'LitT', 'ImpT', 'ExpT', 'StrT', 'Code'])
-    
-    parsed_atoms = parse_atoms(atoms)
-    parsed_literals = parse_literals(literals)
-    parsed_imports = parse_imports(imports, parsed_atoms)
-    parsed_exports = parse_exports(exports, parsed_atoms)
-    parsed_strings = parse_strings(strings)
-    [info | code] = parse_code(code)
-    {
-      :ok,
-      module,
-      %{info |
-        code: code |> decode_tags(parsed_atoms, parsed_literals) |> fix_labels |> fix_args(parsed_imports),
-        atoms: parsed_atoms,
-        literals: parsed_literals,
-        imports: parsed_imports,
-        exports: parsed_exports,
-        strings: parsed_strings
-      }
-    }
+    case :beam_lib.chunks(bytecode, ['AtU8', 'LitT', 'ImpT', 'ExpT', 'StrT', 'Code']) do
+      {:ok,
+          {module, [
+            {'AtU8', atoms},
+            {'LitT', literals},
+            {'ImpT', imports},
+            {'ExpT', exports},
+            {'StrT', strings},
+            {'Code', code}
+          ]}} ->
+
+        parsed_atoms = parse_atoms(atoms)
+        parsed_literals = parse_literals(literals)
+        parsed_imports = parse_imports(imports, parsed_atoms)
+        parsed_exports = parse_exports(exports, parsed_atoms)
+        parsed_strings = parse_strings(strings)
+        [info | code] = parse_code(code)
+        {
+          :ok,
+          module,
+          %{info |
+            code: code
+                  |> decode_tags(parsed_atoms, parsed_literals)
+                  |> fix_labels
+                  |> fix_args(parsed_imports),
+            atoms: parsed_atoms,
+            literals: parsed_literals,
+            imports: parsed_imports,
+            exports: parsed_exports,
+            strings: parsed_strings,
+            opcodes: code |> Keyword.keys |> Enum.into(MapSet.new())
+          }
+        }
+        
+      error ->
+        {:error, :not_beam_bytecode}
+    end
   end
   
-  
  
+  # Lookups/simplifications at tag level
   def decode_tags([{:tag_u, value} | rest], a, l), do: [value | decode_tags(rest, a, l)]
   def decode_tags([{:tag_i, value} | rest], a, l), do: [value | decode_tags(rest, a, l)]
   def decode_tags([{:tag_a, 0} | rest], a, l), do: [nil | decode_tags(rest, a, l)]
@@ -71,6 +80,7 @@ defmodule Decompile do
   def decode_tags([], _, _), do: []
   def decode_tags(x, _, _), do: x
 
+  
   # Neaten up line numbers and labels
   def fix_labels([{:line, [0]} | rest]), do: [{:line, []} | fix_labels(rest)]
   def fix_labels([{:label, [num]} | rest]) when is_number(num), do: [{:label, num} | fix_labels(rest)]
@@ -78,8 +88,10 @@ defmodule Decompile do
   def fix_labels([]), do: []
   def fix_labels(x), do: x
   
+  
   # Opcode specific argument lookups, this information lost in compilation
   # TODO extremely incomplete...
+  def fix_args({:call_ext, [arity, dest]}, imports), do: {:call_ext, [arity, elem(imports, dest)]}
   def fix_args({:call_ext_only, [arity, dest]}, imports), do: {:call_ext_only, [arity, elem(imports, dest)]}
   def fix_args({:call_ext_last, [arity, dest, dealloc]}, imports), do: {:call_ext_only, [arity, elem(imports, dest), dealloc]}
   def fix_args({:gc_bif1, [label, live, bif | rest]}, imports), do: {:gc_bif1, [label, live, elem(imports, bif) | rest]}
@@ -221,7 +233,8 @@ defmodule Decompile do
     parse_compact_terms(rest_after_index, remaining_terms - 1, [{:tag_extended_literal, index} | parsed_terms])
   end
   
-  # TODO rest of TBB section 6.2.14, probably doing negative numbers wrong too,
+  # TODO rest of TBB section 6.2.14, probably decoding negative numbers wrong too.
+  #
   # TODO see https://github.com/erlang/otp/blob/master/lib/compiler/src/beam_asm.erl
   
   
