@@ -22,7 +22,7 @@ defmodule DecompilerTest do
 #  end
   
   test "decompile module calling enum map" do
-    IO.inspect Decompile.decompile(get_fixture_bytecode(ModuleCallsEnumMap))
+    IO.inspect Decompile.decompile(get_fixture_bytecode(ModuleCallsEnumMap)), limit: :infinity
   end
   
 end
