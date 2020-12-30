@@ -58,7 +58,7 @@ defmodule Decompile do
           }
         }
         
-      error ->
+      _error ->
         {:error, :not_beam_bytecode}
     end
   end
