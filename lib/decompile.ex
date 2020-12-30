@@ -17,6 +17,7 @@ defmodule Decompile do
     literals: [],
     imports: [],
     exports: [],
+    strings: [],
     code: []
   ]
   
@@ -28,24 +29,27 @@ defmodule Decompile do
         {'LitT', literals},
         {'ImpT', imports},
         {'ExpT', exports},
+        {'StrT', strings},
         {'Code', code}
       ]}} =
-      :beam_lib.chunks(bytecode, ['AtU8', 'LitT', 'ImpT', 'ExpT', 'Code'])
+      :beam_lib.chunks(bytecode, ['AtU8', 'LitT', 'ImpT', 'ExpT', 'StrT', 'Code'])
     
     parsed_atoms = parse_atoms(atoms)
     parsed_literals = parse_literals(literals)
     parsed_imports = parse_imports(imports, parsed_atoms)
     parsed_exports = parse_exports(exports, parsed_atoms)
+    parsed_strings = parse_strings(strings)
     [info | code] = parse_code(code)
     {
       :ok,
       module,
       %{info |
-        code: code |> decode_tags(parsed_atoms, parsed_literals) |> fix_labels,
+        code: code |> decode_tags(parsed_atoms, parsed_literals) |> fix_labels |> fix_args(parsed_imports),
         atoms: parsed_atoms,
         literals: parsed_literals,
         imports: parsed_imports,
-        exports: parsed_exports
+        exports: parsed_exports,
+        strings: parsed_strings
       }
     }
   end
@@ -67,11 +71,23 @@ defmodule Decompile do
   def decode_tags([], _, _), do: []
   def decode_tags(x, _, _), do: x
 
-  
+  # Neaten up line numbers and labels
+  def fix_labels([{:line, [0]} | rest]), do: [{:line, []} | fix_labels(rest)]
   def fix_labels([{:label, [num]} | rest]) when is_number(num), do: [{:label, num} | fix_labels(rest)]
   def fix_labels([x | rest]), do: [fix_labels(x) | fix_labels(rest)]
   def fix_labels([]), do: []
   def fix_labels(x), do: x
+  
+  # Opcode specific argument lookups, this information lost in compilation
+  # TODO extremely incomplete...
+  def fix_args({:call_ext_only, [arity, dest]}, imports), do: {:call_ext_only, [arity, elem(imports, dest)]}
+  def fix_args({:call_ext_last, [arity, dest, dealloc]}, imports), do: {:call_ext_only, [arity, elem(imports, dest), dealloc]}
+  def fix_args({:gc_bif1, [label, live, bif | rest]}, imports), do: {:gc_bif1, [label, live, elem(imports, bif) | rest]}
+  def fix_args({:gc_bif2, [label, live, bif | rest]}, imports), do: {:gc_bif2, [label, live, elem(imports, bif) | rest]}
+  def fix_args({:gc_bif3, [label, live, bif | rest]}, imports), do: {:gc_bif3, [label, live, elem(imports, bif) | rest]}
+  def fix_args([x | rest], imports), do: [fix_args(x, imports) | fix_args(rest, imports)]
+  def fix_args([], _), do: []
+  def fix_args(x, _), do: x
   
   
   def parse_atoms(<<atom_count::integer-size(32), atoms::binary>>) do
@@ -106,7 +122,7 @@ defmodule Decompile do
   
   def parse_imports(<<module::integer-size(32), function::integer-size(32), arity::integer-size(32), rest::binary>>,
         atoms, imports) do
-    parse_imports(rest, atoms, [{:extfunc, elem(atoms, module - 1), elem(atoms, function - 1), arity} | imports])
+    parse_imports(rest, atoms, [{elem(atoms, module - 1), elem(atoms, function - 1), arity} | imports])
   end
   
   
@@ -118,8 +134,11 @@ defmodule Decompile do
   
   def parse_exports(<<function::integer-size(32), arity::integer-size(32), label::integer-size(32),rest::binary>>,
         atoms, exports) do
-    parse_exports(rest, atoms, [{:exportedfunc, elem(atoms, function - 1), arity, {:label, label}} | exports])
+    parse_exports(rest, atoms, [{elem(atoms, function - 1), arity, {:label, label}} | exports])
   end
+  
+  
+  def parse_strings(strings), do: strings # TODO How are they separated?
   
   
   def parse_code(<<_sub_size::integer-size(32), chunk::binary>>) do
