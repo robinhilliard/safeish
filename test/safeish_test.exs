@@ -16,14 +16,28 @@ defmodule SafeishTest do
   
   
   test "invalid bytecode" do
-    assert {:error, :badarg} = Safeish.module_risks(<<0>>)
+    assert {:error, :not_beam_bytecode} = Safeish.module_risks(<<0>>)
   end
 
   
   test "module_risk lists call to Enum.map" do
     {:ok, ModuleCallsEnumMap, risks} = Safeish.module_risks(get_fixture_bytecode(ModuleCallsEnumMap))
     assert MapSet.equal?(
-             MapSet.new([{Enum, :map, 2}, {:erlang, :get_module_info, 2}]),
+             MapSet.new([
+               :call_ext_only,
+               :func_info,
+               :gc_bif2,
+               :label,
+               :line,
+               :make_fun2,
+               :move,
+               :return,
+               :select_val,
+               {Enum, :map, 2},
+               {:erlang, :+, 2},
+               {:erlang, :get_module_info, 1},
+               {:erlang, :get_module_info, 2}
+             ]),
              risks)
   end
   
@@ -32,7 +46,18 @@ defmodule SafeishTest do
     {:ok, ModuleCallsFileRead, risks} =
       Safeish.module_risks(get_fixture_bytecode(ModuleCallsFileRead))
     assert MapSet.equal?(
-             MapSet.new([{File, :read, 1}, {:erlang, :get_module_info, 2}]),
+             MapSet.new([
+               :call_ext_only,
+               :func_info,
+               :label,
+               :line,
+               :move,
+               :return,
+               :select_val,
+               {File, :read, 1},
+               {:erlang, :get_module_info, 1},
+               {:erlang, :get_module_info, 2}
+             ]),
              risks)
   end
   
@@ -41,7 +66,19 @@ defmodule SafeishTest do
     {:ok, ModuleSpawnsProcess, risks} =
       Safeish.module_risks(get_fixture_bytecode(ModuleSpawnsProcess))
     assert MapSet.equal?(
-             MapSet.new([{:erlang, :spawn, 3}, {:erlang, :get_module_info, 2}]),
+             MapSet.new([
+               :call_ext_only,
+               :func_info,
+               :label,
+               :line,
+               :make_fun2,
+               :move,
+               :return,
+               :select_val,
+               {:erlang, :get_module_info, 1},
+               {:erlang, :get_module_info, 2},
+               {:erlang, :spawn, 3}
+             ]),
              risks)
   end
   
@@ -50,7 +87,22 @@ defmodule SafeishTest do
     {:ok, ModuleReceivesMessage, risks} =
       Safeish.module_risks(get_fixture_bytecode(ModuleReceivesMessage))
     assert MapSet.equal?(
-             MapSet.new([:receive, {:erlang, :get_module_info, 2}]),
+             MapSet.new([
+               :allocate,
+               :call_ext_only,
+               :deallocate,
+               :func_info,
+               :label,
+               :line,
+               :loop_rec,
+               :move,
+               :remove_message,
+               :return,
+               :select_val,
+               :wait,
+               {:erlang, :get_module_info, 1},
+               {:erlang, :get_module_info, 2}
+             ]),
              risks)
   end
   
@@ -59,7 +111,20 @@ defmodule SafeishTest do
     {:ok, ModuleSendsMessage, risks} =
       Safeish.module_risks(get_fixture_bytecode(ModuleSendsMessage))
     assert MapSet.equal?(
-             MapSet.new([{:erlang, :self, 0}, :send, {:erlang, :get_module_info, 2}]),
+             MapSet.new([
+               :bif0,
+               :call_ext_only,
+               :func_info,
+               :label,
+               :line,
+               :move,
+               :return,
+               :select_val,
+               {:erlang, :get_module_info, 1},
+               {:erlang, :get_module_info, 2},
+               {:erlang, :self, 0},
+               {:erlang, :send, 2}
+             ]),
              risks)
   end
   
@@ -68,7 +133,22 @@ defmodule SafeishTest do
     {:ok, ModuleCallsToAtom, risks} =
       Safeish.module_risks(get_fixture_bytecode(ModuleCallsToAtom))
     assert MapSet.equal?(
-             MapSet.new([{:erlang, :binary_to_atom, 2}, {:erlang, :get_module_info, 2}]),
+             MapSet.new([
+               :allocate,
+               :call_ext,
+               :call_ext_last,
+               :call_ext_only,
+               :func_info,
+               :label,
+               :line,
+               :move,
+               :return,
+               :select_val,
+               {Enum, :random, 1},
+               {:erlang, :binary_to_atom, 2},
+               {:erlang, :get_module_info, 1},
+               {:erlang, :get_module_info, 2}
+             ]),
              risks)
   end
   
@@ -91,13 +171,13 @@ defmodule SafeishTest do
   
   
   test "check responds not ok to receiving message" do
-    assert {:error, ModuleReceivesMessage, ["receive not allowed"]} =
+    assert {:error, ModuleReceivesMessage, ["receive (remove_message) not allowed"]} =
                     get_fixture_bytecode(ModuleReceivesMessage) |> Safeish.check
   end
   
   
   test "check responds not ok to sending message" do
-    assert {:error, ModuleSendsMessage, ["send not allowed"]} =
+    assert {:error, ModuleSendsMessage, [":erlang.send not whitelisted"]} =
                     get_fixture_bytecode(ModuleSendsMessage) |> Safeish.check
   end
   

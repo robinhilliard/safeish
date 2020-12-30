@@ -24,6 +24,7 @@ defmodule Safeish do
   # TODO check arguments to apply(), and specify arity
   
   @whitelisted_erlang_bifs MapSet.new([
+    :+, :-, :/, :*,
     :abs, :adler32, :adler32_combine, :append_element, :atom_to_binary, :atom_to_list, :binary_part,
     :binary_to_float, :binary_to_integer, :binary_to_list, :bit_size, :bitstring_to_list, :byte_size,
     :cancel_timer, :ceil, :convert_time_unit, :crc32, :crc32_combine, :date, :delete_element, :display,
@@ -147,6 +148,7 @@ defmodule Safeish do
     {String, :slice, 2},
     {String, :slice, 3},
     {String, :split, 1},
+    {String, :split, 2},
     {String, :split, 3},
     {String, :split_at, 2},
     {String, :splitter, 3},
@@ -302,69 +304,25 @@ defmodule Safeish do
       }
     end
   end
-  
-  def risk_acceptable?(:send, []) do
-    {:error, "send not allowed"}
+    
+  def risk_acceptable?(:remove_message, []) do
+    {:error, "receive (remove_message) not allowed"}
   end
     
-  def risk_acceptable?(:receive, []) do
-    {:error, "receive not allowed"}
-  end
-    
-  def risk_acceptable?(_, _), do: {:error, "unknown risk not whitelisted"}
+  def risk_acceptable?(_, _), do: :ok
   
   
   # TODO detect __STACKTRACE__/0, non literal apply arguments
   
   def module_risks(bytecode) when is_binary(bytecode) do
-    case :beam_lib.chunks(bytecode, [:abstract_code]) do
-      {:ok, {module, [abstract_code: code]}} ->
+    case Decompile.decompile(bytecode) do
+      {:ok, module, %Decompile{imports: imports, opcodes: opcodes}} ->
         {:ok,
           module,
-          module_risks(code, MapSet.new())}
-      _ ->
-        {:error, :badarg}
+          Enum.into(Tuple.to_list(imports), opcodes)}
+      error ->
+        error
     end
   end
   
-  
-  def module_risks(
-        {:call, _line_no, {:remote, _, {:atom, _, :erlang}, {:atom, _, :send}}, args},
-        acc
-      ) do
-    module_risks(
-      args,
-      acc
-      |> MapSet.put(:send)
-    )
-  end
-  
-  def module_risks(
-        {:call, _line_no, {:remote, _, {:atom, _, m}, {:atom, _, f}}, args},
-        acc
-      ) do
-    module_risks(
-      args,
-      acc
-      |> MapSet.put({m, f, length(args)})
-    )
-  end
-  
-  def module_risks({:receive, _line_no, clauses}, acc) do
-    module_risks(
-      clauses,
-      acc
-      |> MapSet.put(:receive)
-    )
-  end
-  
-  def module_risks([], acc), do: acc
-  
-  def module_risks([chunk | chunks], acc),
-      do: module_risks(chunk, module_risks(chunks, acc))
-      
-  def module_risks(t, acc) when is_tuple(t),
-      do: module_risks(Tuple.to_list(t), acc)
-      
-  def module_risks(_, acc), do: acc
 end
