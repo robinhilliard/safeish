@@ -25,7 +25,7 @@ defmodule Bounty1 do
   
   test "checked code can guess the secret" do
     <<secret::128>> = :crypto.strong_rand_bytes(16)
-    Safeish.load_file("test/Elixir.bounty1.beam")
+    Safeish.load_file("test/Elixir.Bounty1.beam")
     assert ^secret = Bounty1.guess()
   end
   
