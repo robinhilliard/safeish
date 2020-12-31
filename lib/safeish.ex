@@ -12,10 +12,12 @@ defmodule Safeish do
   - Network access
   - Compilation
   - System level commands, introspection and diagnostics
-  - Apply and creating atoms dynamically at runtime (which would allow calls to non-whitelisted modules)
+  - various apply functions and creating atoms dynamically at runtime (which would
+    allow calls to non-whitelisted modules)
   
   You can provide an optional whitelist of modules, functions and language features that the
-  loaded module is allowed to use.
+  loaded module is allowed to use. Whitelists are applied to calls and also function literals,
+  because the latter can be used to construct calls in beam assembly without using apply().
   """
   
   # Following lists were compiled for Elixir 1.10.4 and OTP release 23
@@ -492,10 +494,22 @@ defmodule Safeish do
   
   def module_risks(bytecode) when is_binary(bytecode) do
     case Decompile.decompile(bytecode) do
-      {:ok, module, %Decompile{imports: imports, opcodes: opcodes}} ->
+      {:ok, module, %Decompile{imports: imports, literals: literals, opcodes: opcodes}} ->
+        function_literals =
+          literals
+          |> Tuple.to_list
+          |> Enum.flat_map(fn lit ->
+              case is_function(lit) do
+                true ->
+                  [{:module, m}, {:name, f}, {:arity, a} | _] = :erlang.fun_info(lit)
+                  [{m, f, a}]
+                false ->
+                  []
+              end
+            end)
         {:ok,
           module,
-          Enum.into(Tuple.to_list(imports), opcodes)}
+          (Tuple.to_list(imports)  ++ function_literals) |> Enum.into(opcodes)}
       error ->
         error
     end
