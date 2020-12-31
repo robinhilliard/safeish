@@ -12,10 +12,12 @@ that could cause side effects such as:
 - Network access
 - Compilation
 - System level introspection and diagnostics
-- Apply and creating atoms dynamically at runtime (which would allow calls to non-whitelisted modules)
+- various apply functions and creating atoms dynamically at runtime (which would
+  allow calls to non-whitelisted modules)
 
-You can provide an optional whitelist of modules, functions and language features that the 
-loaded module is allowed to use.
+You can provide an optional whitelist of modules, functions and language features that the
+loaded module is allowed to use. Whitelists are applied to calls and also function literals,
+because the latter can be used to construct calls in beam assembly without using apply().
 
 ## Use
 You can call:
@@ -55,7 +57,7 @@ The package can be installed by adding `safeish` to your list of dependencies in
 ```elixir
 def deps do
   [
-    {:safeish, "~> 0.3.0"}
+    {:safeish, "~> 0.4.0"}
   ]
 end
 ```
