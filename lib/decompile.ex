@@ -94,6 +94,7 @@ defmodule Decompile do
   def fix_args({:call_ext, [arity, dest]}, imports), do: {:call_ext, [arity, elem(imports, dest)]}
   def fix_args({:call_ext_only, [arity, dest]}, imports), do: {:call_ext_only, [arity, elem(imports, dest)]}
   def fix_args({:call_ext_last, [arity, dest, dealloc]}, imports), do: {:call_ext_only, [arity, elem(imports, dest), dealloc]}
+  def fix_args({:bif0, [bif, register]}, imports), do: {:bif0, [elem(imports, bif), register]}
   def fix_args({:gc_bif1, [label, live, bif | rest]}, imports), do: {:gc_bif1, [label, live, elem(imports, bif) | rest]}
   def fix_args({:gc_bif2, [label, live, bif | rest]}, imports), do: {:gc_bif2, [label, live, elem(imports, bif) | rest]}
   def fix_args({:gc_bif3, [label, live, bif | rest]}, imports), do: {:gc_bif3, [label, live, elem(imports, bif) | rest]}
