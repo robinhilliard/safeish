@@ -51,7 +51,7 @@ defmodule BountyTest do
   
   
   test "bounty 1: checked code can guess the secret" do
-    assert {:error, Bounty1, [":erlang.process_info not whitelisted"]} =
+    assert {:error, Bounty1, [":erlang.process_info/2 not whitelisted"]} =
              Safeish.load_file("test/bounty_winners/Elixir.Bounty1.beam")
   end
   

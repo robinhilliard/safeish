@@ -11,8 +11,8 @@ defmodule Safeish do
   - File system access
   - Network access
   - Compilation
-  - System level introspection and diagnostics
-  - Creating atoms dynamically at runtime (which would allow calls to non-whitelisted modules)
+  - System level commands, introspection and diagnostics
+  - Apply and creating atoms dynamically at runtime (which would allow calls to non-whitelisted modules)
   
   You can provide an optional whitelist of modules, functions and language features that the
   loaded module is allowed to use.
@@ -20,37 +20,213 @@ defmodule Safeish do
   
   # Following lists were compiled for Elixir 1.10.4 and OTP release 23
   
-  # Within the erlang module only the following BIFs are whitelisted
-  # TODO check arguments to apply(), and specify arity
-  
-  @whitelisted_erlang_bifs MapSet.new([
-    :+, :-, :/, :*,
-    :abs, :adler32, :adler32_combine, :append_element, :atom_to_binary, :atom_to_list, :binary_part,
-    :binary_to_float, :binary_to_integer, :binary_to_list, :bit_size, :bitstring_to_list, :byte_size,
-    :cancel_timer, :ceil, :convert_time_unit, :crc32, :crc32_combine, :date, :delete_element, :display,
-    :element, :erase,  :external_size, :float, :float_to_binary, :float_to_list, :floor, :fun_info,
-    :fun_to_list, :function_exported, :get, :get_keys, :get_module_info, :insert_element, :integer_to_binary,
-    :integer_to_list, :iolist_size, :iolist_to_binary, :iolist_to_iovec, :is_alive, :is_atom, :is_binary,
-    :is_bitstring, :is_boolean, :is_builtin, :is_float, :is_function, :is_integer, :is_list, :is_map,
-    :is_map_key, :is_number, :is_pid, :is_port, :is_process_alive, :is_record, :is_reference, :is_tuple,
-    :length, :list_to_binary, :list_to_bitstring, :list_to_float, :list_to_integer, :list_to_ref,
-    :list_to_tuple, :loaded, :localtime, :localtime_to_universaltime, :make_ref, :make_tuple, :map_get,
-    :map_size, :match_spec_test, :max, :md5, :md5_final, :md5_init, :md5_update, :min, :monotonic_time,
-    :now, :phash, :phash2, :pid_to_list, :put, :read_timer, :ref_to_list, :round, :self, :setelement,
-    :size, :split_binary, :start_timer, :system_time, :term_to_binary, :term_to_iovec, :throw, :time,
-    :time_offset, :timestamp, :tl, :trunc, :tuple_size, :tuple_to_list, :unique_integer, :universaltime,
-    :universaltime_to_localtime
-  ])
-  
   
   # Skipped beam_lib, c, dets, digraph, digraph_utils, epp, erl_anno, erl_eval, erl_expand_records,
   # erl_id_trans, erl_internal, erl_lint, erl_parse, erl_scan, erl_tar, ets, file_sorter, file_lib,
   # gen_event, gen_fsm, gen_server, gen_statem, io, io_lib, ms_transform, pool, proc_lib, qlc, shell
   # shell_default, shell_docs, slave, supervisor, supervisor_bridge, sys, win32reg, zip
-  @whitelisted_erlang_stdlib_modules MapSet.new([
+  @whitelisted_erlang_modules MapSet.new([
     :array, :base64, :binary, :calendar, :dict, :erl_pp, :filename, :gb_sets, :gb_trees, :lists, :maps,
-    :math, :orddict, :ordsets, :proplists, :queue, :rand, :re, :sets, :sofs, :string, :timer, :unicode,
+    :math, :orddict, :ordsets, :proplists, :queue, :rand, :re, :sets, :sofs, :string, :unicode,
     :uri_string
+  ])
+  
+  # Note we're allowing access to the process dictionary
+  @whitelisted_erlang_functions MapSet.new([
+    {:erlang, :+, 2},
+    {:erlang, :-, 2},
+    {:erlang, :/, 2},
+    {:erlang, :*, 2},
+    {:erlang, :abs, 1},
+    {:erlang, :adler32, 1},
+    {:erlang, :adler32, 2},
+    {:erlang, :adler32_combine, 3},
+    {:erlang, :append_element, 2},
+    # skip apply
+    {:erlang, :atom_to_binary, 1},
+    {:erlang, :atom_to_binary, 2},
+    {:erlang, :atom_to_list, 1},
+    {:erlang, :binary_part, 2},
+    {:erlang, :binary_part, 3},
+    # skip binary_to_atom
+    {:erlang, :binary_to_float, 1},
+    {:erlang, :binary_to_integer, 1},
+    {:erlang, :binary_to_integer, 2},
+    {:erlang, :binary_to_list, 1},
+    {:erlang, :binary_to_list, 3},
+    # skip binary_to_term
+    {:erlang, :bit_size, 1},
+    {:erlang, :bitstring_to_list, 1},
+    # skip bump_reductions
+    {:erlang, :byte_size, 1},
+    # skip cancel_timer
+    {:erlang, :ceil, 1},
+    {:erlang, :check_old_code, 1},
+    {:erlang, :check_process_code, 2},
+    {:erlang, :check_process_code, 3},
+    {:erlang, :convert_time_unit, 3},
+    {:erlang, :crc32, 1},
+    {:erlang, :crc32, 2},
+    {:erlang, :crc32_combine, 3},
+    {:erlang, :date, 0},
+    {:erlang, :decode_packet, 3},
+    {:erlang, :delete_element, 2},
+    # skip delete_module, demonitor, disconnect_node
+    {:erlang, :display, 1},
+    {:erlang, :div, 2},
+    # skip dist_ctrl_*
+    {:erlang, :element, 2},
+    {:erlang, :erase, 0},
+    {:erlang, :erase, 1},
+    # skip error, exit
+    {:erlang, :external_size, 1},
+    {:erlang, :external_size, 2},
+    {:erlang, :float, 1},
+    {:erlang, :float_to_binary, 1},
+    {:erlang, :float_to_binary, 2},
+    {:erlang, :float_to_list, 1},
+    {:erlang, :float_to_list, 2},
+    {:erlang, :floor, 1},
+    {:erlang, :fun_info, 1},  # safe without apply()?
+    {:erlang, :fun_info, 2},
+    {:erlang, :fun_to_list, 1},
+    {:erlang, :function_exported, 3},
+    # skip garbage_collect
+    {:erlang, :get, 0},
+    {:erlang, :get, 1},
+    # skip get_cookie, security risk (I mean, even too much for Safe-ish)
+    {:erlang, :get_keys, 0},
+    {:erlang, :get_keys, 1},
+    {:erlang, :get_module_info, 1},
+    {:erlang, :get_module_info, 2},
+    # skip get_stacktrace, deprecated,
+    # skip group_leader, halt
+    {:erlang, :hd, 1},
+    # skip hibernate
+    {:erlang, :insert_element, 3},
+    {:erlang, :integer_to_binary, 1},
+    {:erlang, :integer_to_binary, 2},
+    {:erlang, :integer_to_list, 1},
+    {:erlang, :integer_to_list, 2},
+    {:erlang, :iolist_size, 1},
+    {:erlang, :iolist_to_binary, 1},
+    {:erlang, :iolist_to_iovec, 1},
+    {:erlang, :is_alive, 0},
+    {:erlang, :is_atom, 1},
+    {:erlang, :is_binary, 1},
+    {:erlang, :is_bitstring, 1},
+    {:erlang, :is_boolean, 1},
+    {:erlang, :is_builtin, 3},
+    {:erlang, :is_float, 1},
+    {:erlang, :is_function, 1},
+    {:erlang, :is_function, 2},
+    {:erlang, :is_integer, 1},
+    {:erlang, :is_list, 1},
+    {:erlang, :is_map, 1},
+    {:erlang, :is_map_key, 2},
+    {:erlang, :is_number, 1},
+    {:erlang, :is_pid, 1},
+    {:erlang, :is_port, 1},
+    {:erlang, :is_process_alive, 1},
+    {:erlang, :is_record, 2},
+    {:erlang, :is_record, 3},
+    {:erlang, :is_tuple, 1},
+    {:erlang, :length, 1},
+    # skip link, list_to_atom
+    {:erlang, :list_to_binary, 1},
+    {:erlang, :list_to_bitstring, 1},
+    # skip list_to_existing_atom
+    {:erlang, :list_to_float, 1},
+    {:erlang, :list_to_integer, 1},
+    {:erlang, :list_to_integer, 2},
+    # skip list_to_pid, list_to_port
+    {:erlang, :list_to_ref, 1},
+    {:erlang, :list_to_tuple, 1},
+    # skip load_module, load_nif
+    {:erlang, :loaded, 0}, # safe without apply?
+    {:erlang, :localtime, 0},
+    {:erlang, :localtime_to_universaltime, 1},
+    {:erlang, :localtime_to_universaltime, 2},
+    {:erlang, :make_ref, 0},
+    {:erlang, :make_tuple, 2},
+    {:erlang, :make_tuple, 3},
+    {:erlang, :map_get, 2},
+    {:erlang, :map_size, 1},
+    # skip match_spec_test, seems to be ets specific
+    {:erlang, :max, 2},
+    {:erlang, :md5, 1},
+    {:erlang, :md5_final, 1},
+    {:erlang, :md5_init, 0},
+    {:erlang, :md5_update, 2},
+    {:erlang, :memory, 0},    # read only, seems safe, no access to contents
+    {:erlang, :memory, 1},
+    {:erlang, :min, 2},
+    # skip module_loaded, monitor, monitor_*
+    {:erlang, :monotonic_time, 0},
+    {:erlang, :monotonic_time, 1},
+    # skip nif_error
+    {:erlang, :node, 0},
+    {:erlang, :node, 1},
+    # skip now, deprecated
+    # skip open_port
+    {:erlang, :phash, 2},
+    {:erlang, :phash2, 1},
+    {:erlang, :phash2, 2},
+    {:erlang, :pid_to_list, 1},
+    # skip port_*, ports
+    {:erlang, :pre_loaded, 0},
+    # skip process_*, processes, purge_module
+    {:erlang, :put, 2},
+    # skip raise
+    {:erlang, :read_timer, 1},
+    # skip read_timer/2 as it allows async we can't receive messages
+    {:erlang, :ref_to_list, 1},
+    # skip register, registered, resume_process
+    {:erlang, :rem, 2},
+    {:erlang, :round, 1},
+    {:erlang, :self, 0},  # not much use, can't hurt?
+    # skip send, send_*, set_cookie
+    {:erlang, :setelement, 3},
+    {:erlang, :size, 1},
+    # skip spawn, spawn_*
+    {:erlang, :split_binary, 2},
+    # skip start_timer, statistics, suspend_process, system_* except for
+    {:erlang, :system_time, 0},
+    {:erlang, :system_time, 1},
+    {:erlang, :term_to_binary, 1},
+    {:erlang, :term_to_binary, 2},
+    {:erlang, :term_to_iovec, 1},
+    {:erlang, :term_to_iovec, 2},
+    {:erlang, :throw, 1},
+    {:erlang, :time, 0},
+    {:erlang, :time_offset, 0},
+    {:erlang, :time_offset, 1},
+    {:erlang, :timestamp, 0},
+    {:erlang, :tl, 1},
+    # skip trace, trace_*
+    {:erlang, :trunc, 1},
+    {:erlang, :tuple_size, 1},
+    {:erlang, :tuple_to_list, 1},
+    {:erlang, :unique_integer, 0},
+    {:erlang, :unique_integer, 1},
+    {:erlang, :universal_time, 0},
+    {:erlang, :universal_time_to_local_time, 1},
+    # skip unlink, unregister, whereis, yield
+    
+    # skip apply_*
+    {:timer, :cancel, 1},
+    # skip exit_*
+    {:timer, :hms, 3},
+    {:timer, :hours, 1},
+    # skip kill_after /1 /2
+    {:timer, :minutes, 1},
+    {:timer, :now_diff, 2},
+    {:timer, :seconds, 1},
+    # skip send_*
+    {:timer, :sleep, 1},
+    {:timer, :tc, 1},
+    {:timer, :tc, 2}
+    # skip tc/3 with module argument
   ])
   
   
@@ -284,23 +460,19 @@ defmodule Safeish do
   def risk_acceptable?({:erlang, :send, 2}, [:send | _whitelist]), do: :ok
   def risk_acceptable?(risk, [_not_that_risk | whitelist]), do: risk_acceptable?(risk, whitelist)
   
-  def risk_acceptable?({:erlang, function, _}, []) do
-    if MapSet.member?(@whitelisted_erlang_bifs, function) do
-        :ok
-    else
-        {:error, ":erlang.#{Atom.to_string(function)} not whitelisted"}
-    end
-  end
-  
   def risk_acceptable?(mfa = {module, function, arity}, []) do
-    if MapSet.member?(@whitelisted_erlang_stdlib_modules, module) or
+    if MapSet.member?(@whitelisted_erlang_modules, module) or
        MapSet.member?(@whitelisted_elixir_modules, module) or
+       MapSet.member?(@whitelisted_erlang_functions, mfa) or
        MapSet.member?(@whitelisted_elixir_functions, mfa) do
       :ok
     else
+      m = Atom.to_string(module)
+      f = Atom.to_string(function)
+      a = Integer.to_string(arity)
       {
         :error,
-        "#{Atom.to_string(module)}.#{Atom.to_string(function)}/#{Integer.to_string(arity)} not whitelisted"
+        "#{if String.match?(m, ~r/^[a-z]/) do ":" else "" end}#{m}.#{f}/#{a} not whitelisted"
       }
     end
   end

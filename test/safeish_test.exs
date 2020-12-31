@@ -165,7 +165,7 @@ defmodule SafeishTest do
   
   
   test "check responds not ok to spawning process" do
-    assert {:error, ModuleSpawnsProcess, [":erlang.spawn not whitelisted"]} =
+    assert {:error, ModuleSpawnsProcess, [":erlang.spawn/3 not whitelisted"]} =
                     get_fixture_bytecode(ModuleSpawnsProcess) |> Safeish.check
   end
   
@@ -177,13 +177,13 @@ defmodule SafeishTest do
   
   
   test "check responds not ok to sending message" do
-    assert {:error, ModuleSendsMessage, [":erlang.send not whitelisted"]} =
+    assert {:error, ModuleSendsMessage, [":erlang.send/2 not whitelisted"]} =
                     get_fixture_bytecode(ModuleSendsMessage) |> Safeish.check
   end
   
   
   test "check responds not ok to calling to_atom" do
-    assert {:error, ModuleCallsToAtom, [":erlang.binary_to_atom not whitelisted"]} =
+    assert {:error, ModuleCallsToAtom, [":erlang.binary_to_atom/2 not whitelisted"]} =
                     get_fixture_bytecode(ModuleCallsToAtom) |> Safeish.check
   end
 
