@@ -5,7 +5,7 @@ defmodule BountyTest do
   I, Robin Hilliard, will pay the submitter of the first pull request to
   my github repo for this project that causes the test
   
-  "bounty 3 checked code can guess the secret"
+  "bounty 4 checked code can guess the secret"
 
   to pass by changing the contents of `bounty_winners/Elixir.Bounty3.beam`
   AND NOTHING ELSE 100 USD. Provide payment details (email or mobile) within
@@ -26,7 +26,7 @@ defmodule BountyTest do
   The current beam file was compiled from this source:
   
   ```
-  defmodule Bounty3 do
+  defmodule Bounty4 do
     def guess(), do: -1
   end
   ```
@@ -46,6 +46,8 @@ defmodule BountyTest do
   ------ ------- ----           ------      --------------
   1      0.1.0   26 Dec 2020    Voltone     The abstract code chunk has nothing to do with the actual code
   2      0.2.0   30 Dec 2020    Voltone     There is an apply opcode, it's not just an external function
+  3      0.3.0   31 Dec 2020    Voltone     Check your whitelists! And function literals can be used to
+                                            construct calls in beam assembly without an apply
   """
   use ExUnit.Case
   
@@ -61,9 +63,14 @@ defmodule BountyTest do
   end
   
   test "bounty 3: checked code can guess the secret" do
+    assert {:error, Bounty3, [":erlang.process_info/2 not whitelisted"]} =
+             Safeish.load_file("test/bounty_winners/Elixir.Bounty3.beam")
+  end
+  
+  test "bounty 4: checked code can guess the secret" do
     <<secret::128>> = :crypto.strong_rand_bytes(16)
-    assert {:ok, Bounty3} = Safeish.load_file("test/bounty_winners/Elixir.Bounty3.beam")
-    assert ^secret = Bounty3.guess()
+    assert {:ok, Bounty4} = Safeish.load_file("test/bounty_winners/Elixir.Bounty4.beam")
+    assert ^secret = Bounty4.guess()
   end
   
   
