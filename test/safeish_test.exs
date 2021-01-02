@@ -16,7 +16,7 @@ defmodule SafeishTest do
   
   
   test "invalid bytecode" do
-    assert {:error, :not_beam_bytecode} = Safeish.module_risks(<<0>>)
+    assert {:error, :beam_lib, {:not_a_beam_file, <<0>>}} = Safeish.module_risks(<<0>>)
   end
 
   
@@ -171,7 +171,7 @@ defmodule SafeishTest do
   
   
   test "check responds not ok to receiving message" do
-    assert {:error, ModuleReceivesMessage, ["receive (remove_message) not allowed"]} =
+    assert {:error, ModuleReceivesMessage, ["Beam opcode 'remove_message' not whitelisted"]} =
                     get_fixture_bytecode(ModuleReceivesMessage) |> Safeish.check
   end
   
