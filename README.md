@@ -57,7 +57,7 @@ The package can be installed by adding `safeish` to your list of dependencies in
 ```elixir
 def deps do
   [
-    {:safeish, "~> 0.4.0"}
+    {:safeish, "~> 0.5.0"}
   ]
 end
 ```
