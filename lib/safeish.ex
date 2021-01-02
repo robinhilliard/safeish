@@ -22,6 +22,37 @@ defmodule Safeish do
   
   # Following lists were compiled for Elixir 1.10.4 and OTP release 23
   
+  @whitelisted_beam_opcodes MapSet.new([
+    :allocate, :allocate_heap, :allocate_heap_zero, :allocate_zero,
+    #:apply, :apply_last,
+    :badmatch, :bif0, :bif1, :bif2, :bs_add, :bs_append, :bs_bits_to_bytes, :bs_bits_to_bytes2,
+    :bs_context_to_binary, :bs_final, :bs_final2, :bs_get_binary, :bs_get_binary2, :bs_get_float,
+    :bs_get_float2, :bs_get_integer, :bs_get_integer2, :bs_get_position, :bs_get_tail, :bs_get_utf16,
+    :bs_get_utf32, :bs_get_utf8, :bs_init, :bs_init2, :bs_init_bits, :bs_init_writable, :bs_match_string,
+    :bs_need_buf, :bs_private_append, :bs_put_binary, :bs_put_float, :bs_put_integer, :bs_put_string,
+    :bs_put_utf16, :bs_put_utf32, :bs_put_utf8, :bs_restore, :bs_restore2, :bs_save, :bs_save2,
+    :bs_set_position, :bs_skip_bits, :bs_skip_bits2, :bs_skip_utf16, :bs_skip_utf32, :bs_skip_utf8,
+    :bs_start_match, :bs_start_match2, :bs_start_match3, :bs_start_match4, :bs_test_tail, :bs_test_tail2,
+    :bs_test_unit, :bs_utf16_size, :bs_utf8_size,
+    #:build_stacktrace,
+    :call, :call_ext, :call_ext_last, :call_ext_only, :call_fun, :call_last, :call_only, :case_end,
+    :catch, :catch_end, :deallocate, :fadd, :fcheckerror, :fclearerror, :fconv, :fdiv, :fmove, :fmul,
+    :fnegate, :fsub, :func_info, :gc_bif1, :gc_bif2, :gc_bif3, :get_hd, :get_list, :get_map_elements,
+    :get_tl, :get_tuple_element, :has_map_fields, :if_end, :init, :int_band, :int_bnot, :int_bor,
+    :int_bsl, :int_bsr, :int_bxor, :int_code_end, :int_div, :int_rem, :is_atom, :is_binary, :is_bitstr,
+    :is_boolean, :is_constant, :is_eq, :is_eq_exact, :is_float, :is_function, :is_function2, :is_ge,
+    :is_integer, :is_list, :is_lt, :is_map, :is_ne, :is_ne_exact, :is_nil, :is_nonempty_list, :is_number,
+    :is_pid, :is_port, :is_reference, :is_tagged_tuple, :is_tuple, :jump, :label, :line, :loop_rec,
+    :loop_rec_end, :m_div, :m_minus, :m_plus, :m_times, :make_fun, :make_fun2, :move, :on_load, :put,
+    :put_list, :put_literal, :put_map_assoc, :put_map_exact, :put_string, :put_tuple, :put_tuple2, :raise,
+    :raw_raise, :recv_mark, :recv_set,
+    #:remove_message,
+    :return, :select_tuple_arity, :select_val,
+    #:send,
+    :set_tuple_element, :swap, :test_arity, :test_heap, :timeout, :trim, :try, :try_case, :try_case_end,
+    :try_end, :wait, :wait_timeout
+  ])
+  
   
   # Skipped beam_lib, c, dets, digraph, digraph_utils, epp, erl_anno, erl_eval, erl_expand_records,
   # erl_id_trans, erl_internal, erl_lint, erl_parse, erl_scan, erl_tar, ets, file_sorter, file_lib,
@@ -460,6 +491,7 @@ defmodule Safeish do
   def risk_acceptable?(mfa, [mfa | _whitelist]), do: :ok
   def risk_acceptable?(:remove_message, [:receive | _whitelist]), do: :ok
   def risk_acceptable?({:erlang, :send, 2}, [:send | _whitelist]), do: :ok
+  def risk_acceptable?(:send, [:send | _whitelist]), do: :ok
   def risk_acceptable?(risk, [_not_that_risk | whitelist]), do: risk_acceptable?(risk, whitelist)
   
   def risk_acceptable?(mfa = {module, function, arity}, []) do
@@ -478,19 +510,17 @@ defmodule Safeish do
       }
     end
   end
-    
-  def risk_acceptable?(:remove_message, []) do
-    {:error, "receive (remove_message) not allowed"}
-  end
   
-  def risk_acceptable?(:apply, []) do
-    {:error, "apply not allowed"}
+  def risk_acceptable?(opcode, []) when is_atom(opcode) do
+    if MapSet.member?(@whitelisted_beam_opcodes, opcode) do
+      :ok
+    else
+      {:error, "Beam opcode '#{Atom.to_string(opcode)}' not whitelisted"}
+    end
   end
     
   def risk_acceptable?(_, _), do: :ok
   
-  
-  # TODO detect __STACKTRACE__/0, non literal apply arguments
   
   def module_risks(bytecode) when is_binary(bytecode) do
     case Decompile.decompile(bytecode) do
