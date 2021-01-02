@@ -5,9 +5,9 @@ defmodule BountyTest do
   I, Robin Hilliard, will pay the submitter of the first pull request to
   my github repo for this project that causes the test
   
-  "bounty 4 checked code can guess the secret"
+  "bounty 5 checked code can guess the secret"
 
-  to pass by changing the contents of `bounty_winners/Elixir.Bounty3.beam`
+  to pass by changing the contents of `bounty_winners/Elixir.Bounty5.beam`
   AND NOTHING ELSE 100 USD. Provide payment details (email or mobile) within
   one week of PR being accepted to robin.hilliard (at) gmail.com.
   
@@ -26,7 +26,7 @@ defmodule BountyTest do
   The current beam file was compiled from this source:
   
   ```
-  defmodule Bounty4 do
+  defmodule Bounty5 do
     def guess(), do: -1
   end
   ```
@@ -48,6 +48,8 @@ defmodule BountyTest do
   2      0.2.0   30 Dec 2020    Voltone     There is an apply opcode, it's not just an external function
   3      0.3.0   31 Dec 2020    Voltone     Check your whitelists! And function literals can be used to
                                             construct calls in beam assembly without an apply
+  4      0.4.0   02 Jan 2021    Voltone     If you go to the trouble of collecting a unique list of opcodes
+                                            maybe it would be a good idea to check them against a whitelist
   """
   use ExUnit.Case
   
@@ -58,7 +60,7 @@ defmodule BountyTest do
   end
   
   test "bounty 2: checked code can guess the secret" do
-    assert {:error, Bounty2, ["apply not allowed"]} =
+    assert {:error, Bounty2, ["Beam opcode 'apply' not whitelisted"]} =
              Safeish.load_file("test/bounty_winners/Elixir.Bounty2.beam")
   end
   
@@ -68,9 +70,14 @@ defmodule BountyTest do
   end
   
   test "bounty 4: checked code can guess the secret" do
+    assert {:error, Bounty4, ["Beam opcode 'apply_last' not whitelisted"]} =
+             Safeish.load_file("test/bounty_winners/Elixir.Bounty4.beam")
+  end
+  
+  test "bounty 5: checked code can guess the secret" do
     <<secret::128>> = :crypto.strong_rand_bytes(16)
-    assert {:ok, Bounty4} = Safeish.load_file("test/bounty_winners/Elixir.Bounty4.beam")
-    assert ^secret = Bounty4.guess()
+    assert {:ok, Bounty5} = Safeish.load_file("test/bounty_winners/Elixir.Bounty5.beam")
+    assert ^secret = Bounty5.guess()
   end
   
   
