@@ -4,7 +4,7 @@ defmodule Safeish.MixProject do
   def project do
     [
       app: :safeish,
-      version: "0.4.0",
+      version: "0.5.0",
       elixir: "~> 1.10",
       start_permanent: Mix.env() == :prod,
       description: description(),
@@ -28,7 +28,7 @@ defmodule Safeish.MixProject do
   end
   
   defp description() do
-    "NOT FOR PRODUCTION USE: Safe-ish is an experimental sandbox for BEAM modules that examines and rejects BEAM bytecode containing instructions that could cause side effects. You can provide an optional whitelist of things the module is allowed to use."
+    "NOT FOR PRODUCTION USE: Safe-ish is an experimental sandbox for BEAM modules that examines and rejects BEAM bytecode containing instructions that could cause side effects. You can provide an optional whitelist of opcodes and functions the module can use."
   end
   
   defp package() do
