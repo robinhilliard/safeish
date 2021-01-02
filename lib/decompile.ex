@@ -17,6 +17,7 @@ defmodule Decompile do
     literals: [],
     imports: [],
     exports: [],
+    functions: [],
     strings: [],
     code: [],
     opcodes: MapSet.new()
@@ -24,13 +25,16 @@ defmodule Decompile do
   
   
   def decompile(bytecode) do
-    case :beam_lib.chunks(bytecode, ['AtU8', 'LitT', 'ImpT', 'ExpT', 'StrT', 'Code']) do
+    case :beam_lib.chunks(bytecode,
+           ['AtU8', 'LitT', 'ImpT', 'ExpT', 'FunT', 'StrT', 'Code'],
+           [:allow_missing_chunks]) do
       {:ok,
           {module, [
             {'AtU8', atoms},
             {'LitT', literals},
             {'ImpT', imports},
             {'ExpT', exports},
+            {'FunT', functions},
             {'StrT', strings},
             {'Code', code}
           ]}} ->
@@ -39,6 +43,7 @@ defmodule Decompile do
         parsed_literals = parse_literals(literals)
         parsed_imports = parse_imports(imports, parsed_atoms)
         parsed_exports = parse_exports(exports, parsed_atoms)
+        parsed_functions = parse_functions(functions, parsed_atoms)
         parsed_strings = parse_strings(strings)
         [info | code] = parse_code(code)
         {
@@ -53,13 +58,14 @@ defmodule Decompile do
             literals: parsed_literals,
             imports: parsed_imports,
             exports: parsed_exports,
+            functions: parsed_functions,
             strings: parsed_strings,
             opcodes: code |> Keyword.keys |> Enum.into(MapSet.new())
           }
         }
         
-      _error ->
-        {:error, :not_beam_bytecode}
+      err ->
+        err
     end
   end
   
@@ -83,6 +89,7 @@ defmodule Decompile do
   
   # Neaten up line numbers and labels
   def fix_labels([{:line, [0]} | rest]), do: [{:line, []} | fix_labels(rest)]
+  def fix_labels([{:line, [x]} | rest]), do: [{:line, x} | fix_labels(rest)]
   def fix_labels([{:label, [num]} | rest]) when is_number(num), do: [{:label, num} | fix_labels(rest)]
   def fix_labels([x | rest]), do: [fix_labels(x) | fix_labels(rest)]
   def fix_labels([]), do: []
@@ -115,6 +122,8 @@ defmodule Decompile do
   end
   
   
+  def parse_literals(:missing_chunk), do: {}
+  
   def parse_literals(<<_compressed_table_size::integer-size(32), compressed::binary>>) do
     <<_number_of_literals::integer-size(32), table::binary>> = :zlib.uncompress(compressed)
     parse_literals(table, [])
@@ -126,6 +135,8 @@ defmodule Decompile do
     parse_literals(rest, [:erlang.binary_to_term(literal) | literals])
   end
   
+  
+  def parse_imports(:missing_chunk), do: {}
   
   def parse_imports(<<_number_of_imports::integer-size(32), table::binary>>, atoms) do
     parse_imports(table, atoms, [])
@@ -139,6 +150,8 @@ defmodule Decompile do
   end
   
   
+  def parse_exports(:missing_chunk, _), do: {}
+  
   def parse_exports(<<_number_of_exports::integer-size(32), table::binary>>, atoms) do
     parse_exports(table, atoms, [])
   end
@@ -151,8 +164,24 @@ defmodule Decompile do
   end
   
   
-  def parse_strings(strings), do: strings # TODO How are they separated?
+  def parse_functions(:missing_chunk, _), do: {}
   
+  def parse_functions(<<_number_of_functions::integer-size(32), table::binary>>, atoms) do
+    parse_functions(table, atoms, [])
+  end
+  
+  def parse_functions(<<>>, _, functions), do: functions |> Enum.reverse |> List.to_tuple
+  
+  def parse_functions(<<function::integer-size(32), arity::integer-size(32),
+      offset::integer-size(32), index::integer-size(32), n_free::integer-size(32),
+      o_uniq::integer-size(32), rest::binary>>, atoms, functions) do
+    parse_functions(rest, atoms, [{elem(atoms, function - 1), arity, offset, index, n_free, o_uniq} | functions])
+  end
+  
+  
+  def parse_strings(:missing_chunk), do: ""
+  def parse_strings(strings), do: strings # TODO How are they separated?
+
   
   def parse_code(<<_sub_size::integer-size(32), chunk::binary>>) do
     <<
