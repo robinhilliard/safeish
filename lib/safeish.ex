@@ -5,7 +5,7 @@ defmodule Safeish do
   Safe-ish is an _experimental_, minimally restrictive sandbox for BEAM modules
   that examines and rejects BEAM bytecode at load time containing instructions
   that could cause side effects such as:
-  
+
   - Spawning processes
   - Sending and receiving messages
   - File system access
@@ -14,14 +14,14 @@ defmodule Safeish do
   - System level commands, introspection and diagnostics
   - various apply functions and creating atoms dynamically at runtime (which would
     allow calls to non-whitelisted modules)
-  
+
   You can provide an optional whitelist of modules, functions and language features that the
   loaded module is allowed to use. Whitelists are applied to calls and also function literals,
   because the latter can be used to construct calls in beam assembly without using apply().
   """
-  
-  # Following lists were compiled for Elixir 1.10.4 and OTP release 23
-  
+
+    # Following lists were compiled for Elixir 1.12.1 and OTP release 24
+
   @whitelisted_beam_opcodes MapSet.new([
     :allocate, :allocate_heap, :allocate_heap_zero, :allocate_zero,
     #:apply, :apply_last,
@@ -38,22 +38,22 @@ defmodule Safeish do
     :call, :call_ext, :call_ext_last, :call_ext_only, :call_fun, :call_last, :call_only, :case_end,
     :catch, :catch_end, :deallocate, :fadd, :fcheckerror, :fclearerror, :fconv, :fdiv, :fmove, :fmul,
     :fnegate, :fsub, :func_info, :gc_bif1, :gc_bif2, :gc_bif3, :get_hd, :get_list, :get_map_elements,
-    :get_tl, :get_tuple_element, :has_map_fields, :if_end, :init, :int_band, :int_bnot, :int_bor,
+    :get_tl, :get_tuple_element, :has_map_fields, :if_end, :init, :init_yregs, :int_band, :int_bnot, :int_bor,
     :int_bsl, :int_bsr, :int_bxor, :int_code_end, :int_div, :int_rem, :is_atom, :is_binary, :is_bitstr,
     :is_boolean, :is_constant, :is_eq, :is_eq_exact, :is_float, :is_function, :is_function2, :is_ge,
     :is_integer, :is_list, :is_lt, :is_map, :is_ne, :is_ne_exact, :is_nil, :is_nonempty_list, :is_number,
     :is_pid, :is_port, :is_reference, :is_tagged_tuple, :is_tuple, :jump, :label, :line, :loop_rec,
-    :loop_rec_end, :m_div, :m_minus, :m_plus, :m_times, :make_fun, :make_fun2, :move, :on_load, :put,
+    :loop_rec_end, :m_div, :m_minus, :m_plus, :m_times, :make_fun, :make_fun2, :make_fun3, :move, :on_load, :put,
     :put_list, :put_literal, :put_map_assoc, :put_map_exact, :put_string, :put_tuple, :put_tuple2, :raise,
-    :raw_raise, :recv_mark, :recv_set,
+    :raw_raise, :recv_mark, :recv_marker_bind, :recv_marker_clear, :recv_marker_reserve, :recv_marker_use, :recv_set,
     #:remove_message,
     :return, :select_tuple_arity, :select_val,
     #:send,
     :set_tuple_element, :swap, :test_arity, :test_heap, :timeout, :trim, :try, :try_case, :try_case_end,
     :try_end, :wait, :wait_timeout
   ])
-  
-  
+
+
   # Skipped beam_lib, c, dets, digraph, digraph_utils, epp, erl_anno, erl_eval, erl_expand_records,
   # erl_id_trans, erl_internal, erl_lint, erl_parse, erl_scan, erl_tar, ets, file_sorter, file_lib,
   # gen_event, gen_fsm, gen_server, gen_statem, io, io_lib, ms_transform, pool, proc_lib, qlc, shell
@@ -63,7 +63,7 @@ defmodule Safeish do
     :math, :orddict, :ordsets, :proplists, :queue, :rand, :re, :sets, :sofs, :string, :unicode,
     :uri_string
   ])
-  
+
   # Note we're allowing access to the process dictionary
   @whitelisted_erlang_functions MapSet.new([
     {:erlang, :+, 2},
@@ -245,7 +245,7 @@ defmodule Safeish do
     {:erlang, :universal_time, 0},
     {:erlang, :universal_time_to_local_time, 1},
     # skip unlink, unregister, whereis, yield
-    
+
     # skip apply_*
     {:timer, :cancel, 1},
     # skip exit_*
@@ -261,8 +261,8 @@ defmodule Safeish do
     {:timer, :tc, 2}
     # skip tc/3 with module argument
   ])
-  
-  
+
+
   # Skipped modules with problem functions: Function, Module, String, IO (:stdio/:stderr are problem),
   # Agent, Application, Config, Config.Provider, Config.Reader, DynamicSupervisor, GenServer, Node,
   # Process, Registry, Supervisor, Task, Task.Supervisor, Code, Kernel.ParallelCompiler, Macro, Macro.Env
@@ -280,10 +280,10 @@ defmodule Safeish do
     UndefinedFunctionError, UnicodeConversionError, Version.InvalidRequirementError, Version.InvalidVersionError,
     WithClauseError
   ])
-  
+
   # Explicitly list safe functions in skipped modules
   @whitelisted_elixir_functions MapSet.new([
-  
+
     # Can't allow Function.capture() TODO or check for literal safe arguments to function capture
     {Function, :identity, 1},
     {Function, :info, 1},
@@ -322,7 +322,7 @@ defmodule Safeish do
     {List, :update_at, 3},
     {List, :wrap, 1},
     {List, :zip, 1},
-  
+
     # Can't allow String.to_atom(), String.to_existing_atom()
     {String, :at, 2},
     {String, :bag_distance, 2},
@@ -394,11 +394,11 @@ defmodule Safeish do
     {System, :unique_integer, 1},
     {System, :version, 0}
   ])
-  
-  
+
+
   @doc """
   Check and load module bytecode from a file path
-  
+
   ## Params
   filename:         Path to beam file to check and load if content "safe"
   whitelist:        A list of call targets and language features allowed in the bytecode:
@@ -415,19 +415,19 @@ defmodule Safeish do
     iex> SomeSafeModule.func()
   ```
   """
-  
-  
+
+
   def load_file(filename, whitelist \\ []) do
     {:ok, file} = File.open(filename, [:read])
     bytecode = IO.binread(file, :all)
     File.close(file)
     load_bytecode(bytecode, whitelist)
   end
-  
+
 
   @doc """
   Check and load binary module bytecode
-  
+
   ## Params
   bytecode:         Bytecode of module to check and load if content "safe"
   whitelist:        A list of call targets and language features allowed in the bytecode:
@@ -453,11 +453,11 @@ defmodule Safeish do
         error
     end
   end
-  
-  
+
+
   @doc """
   Check binary module bytecode
-  
+
   ## Params
   bytecode:         Bytecode of module to check and load if content "safe"
   whitelist:        A list of call targets and language features allowed in the bytecode:
@@ -484,8 +484,8 @@ defmodule Safeish do
                         |> Enum.map(fn {:error, msg} -> msg end)}
     end
   end
-  
-  
+
+
   def risk_acceptable?({module, _, _}, [module | _whitelist]), do: :ok
   def risk_acceptable?({module, function, _}, [{module, function} | _whitelist]), do: :ok
   def risk_acceptable?(mfa, [mfa | _whitelist]), do: :ok
@@ -493,7 +493,7 @@ defmodule Safeish do
   def risk_acceptable?({:erlang, :send, 2}, [:send | _whitelist]), do: :ok
   def risk_acceptable?(:send, [:send | _whitelist]), do: :ok
   def risk_acceptable?(risk, [_not_that_risk | whitelist]), do: risk_acceptable?(risk, whitelist)
-  
+
   def risk_acceptable?(mfa = {module, function, arity}, []) do
     if MapSet.member?(@whitelisted_erlang_modules, module) or
        MapSet.member?(@whitelisted_elixir_modules, module) or
@@ -510,7 +510,7 @@ defmodule Safeish do
       }
     end
   end
-  
+
   def risk_acceptable?(opcode, []) when is_atom(opcode) do
     if MapSet.member?(@whitelisted_beam_opcodes, opcode) do
       :ok
@@ -518,10 +518,10 @@ defmodule Safeish do
       {:error, "Beam opcode '#{Atom.to_string(opcode)}' not whitelisted"}
     end
   end
-    
+
   def risk_acceptable?(_, _), do: :ok
-  
-  
+
+
   def module_risks(bytecode) when is_binary(bytecode) do
     case Decompile.decompile(bytecode) do
       {:ok, module, %Decompile{imports: imports, literals: literals, opcodes: opcodes}} ->
@@ -544,5 +544,5 @@ defmodule Safeish do
         error
     end
   end
-  
+
 end
