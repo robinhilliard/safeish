@@ -19,9 +19,9 @@ defmodule Safeish do
   loaded module is allowed to use. Whitelists are applied to calls and also function literals,
   because the latter can be used to construct calls in beam assembly without using apply().
   """
-  
-  # Following lists were compiled for Elixir 1.10.4 and OTP release 23
-  
+
+  # Following lists were compiled for Elixir 1.12.1 and OTP release 24
+
   @whitelisted_beam_opcodes MapSet.new([
     :allocate, :allocate_heap, :allocate_heap_zero, :allocate_zero,
     #:apply, :apply_last,
@@ -38,14 +38,14 @@ defmodule Safeish do
     :call, :call_ext, :call_ext_last, :call_ext_only, :call_fun, :call_last, :call_only, :case_end,
     :catch, :catch_end, :deallocate, :fadd, :fcheckerror, :fclearerror, :fconv, :fdiv, :fmove, :fmul,
     :fnegate, :fsub, :func_info, :gc_bif1, :gc_bif2, :gc_bif3, :get_hd, :get_list, :get_map_elements,
-    :get_tl, :get_tuple_element, :has_map_fields, :if_end, :init, :int_band, :int_bnot, :int_bor,
+    :get_tl, :get_tuple_element, :has_map_fields, :if_end, :init, :init_yregs, :int_band, :int_bnot, :int_bor,
     :int_bsl, :int_bsr, :int_bxor, :int_code_end, :int_div, :int_rem, :is_atom, :is_binary, :is_bitstr,
     :is_boolean, :is_constant, :is_eq, :is_eq_exact, :is_float, :is_function, :is_function2, :is_ge,
     :is_integer, :is_list, :is_lt, :is_map, :is_ne, :is_ne_exact, :is_nil, :is_nonempty_list, :is_number,
     :is_pid, :is_port, :is_reference, :is_tagged_tuple, :is_tuple, :jump, :label, :line, :loop_rec,
-    :loop_rec_end, :m_div, :m_minus, :m_plus, :m_times, :make_fun, :make_fun2, :move, :on_load, :put,
+    :loop_rec_end, :m_div, :m_minus, :m_plus, :m_times, :make_fun, :make_fun2, :make_fun3, :move, :on_load, :put,
     :put_list, :put_literal, :put_map_assoc, :put_map_exact, :put_string, :put_tuple, :put_tuple2, :raise,
-    :raw_raise, :recv_mark, :recv_set,
+    :raw_raise, :recv_mark, :recv_marker_bind, :recv_marker_clear, :recv_marker_reserve, :recv_marker_use, :recv_set,
     #:remove_message,
     :return, :select_tuple_arity, :select_val,
     #:send,
